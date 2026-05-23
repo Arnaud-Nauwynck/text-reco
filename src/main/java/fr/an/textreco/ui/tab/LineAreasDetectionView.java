@@ -40,6 +40,7 @@ public class LineAreasDetectionView {
     private final Canvas    histCanvas     = new Canvas(HIST_W, PREVIEW_H);
     private final Canvas    vHistCanvas    = new Canvas(PREVIEW_W, VHIST_H);
     private final Label     lineCountLabel = statLabel("Lines: —");
+    private final Label     gridLabel      = statLabel("Grid: —");
     private final VBox      lineList       = new VBox(3);
     private final ScrollPane lineScroll;
 
@@ -51,7 +52,7 @@ public class LineAreasDetectionView {
         pipeline.getPerspectiveImageProperty().addListener((obs, o, img) -> { if (img != null) setWarpedImage(img); });
         pipeline.getPreProcessingProperty()   .addListener((obs, o, r)   -> onPreProcessing(r));
         pipeline.getTextLinesProperty()       .addListener((obs, o, r)   -> { if (r != null) onResult(r); });
-        pipeline.getGridDetectionProperty()   .addListener((obs, o, r)   -> { lastGrid = r; });
+        pipeline.getGridDetectionProperty()   .addListener((obs, o, r)   -> { lastGrid = r; onGrid(r); });
 
         warpedView.setPreserveRatio(true);
         warpedView.setFitWidth(PREVIEW_W);
@@ -86,7 +87,7 @@ public class LineAreasDetectionView {
     private VBox buildRightContent(ScrollPane scroll) {
         VBox box = new VBox(8);
         box.setPrefWidth(480);
-        box.getChildren().addAll(sectionLabel("Lines"), lineCountLabel, scroll);
+        box.getChildren().addAll(sectionLabel("Lines"), lineCountLabel, gridLabel, scroll);
         VBox.setVgrow(scroll, javafx.scene.layout.Priority.ALWAYS);
         box.setStyle("-fx-background-color: #1e1e1e;");
         return box;
@@ -108,19 +109,32 @@ public class LineAreasDetectionView {
         warpedView.setImage(image);
     }
 
+    private void onGrid(GridDetectionResult r) {
+        if (r == null) { gridLabel.setText("Grid: —"); return; }
+        gridLabel.setText(String.format(
+                "x0=%d  y0=%d  charW=%d  lineH=%d",
+                r.bestCharX0(), r.bestLineY0(), r.bestCharW(), r.bestLineH()));
+    }
+
+    private PreProcessingResult lastPreProc = null;
+
     private void onPreProcessing(PreProcessingResult r) {
         if (r == null) return;
-        drawVHistogram(r.vColSums(), r.frameWidth(), r.frameHeight());
+        lastPreProc = r;
+        drawVHistogram(r);
     }
 
     // -------------------------------------------------------------------------
-    // V-histogram: vertical projection (col sums from morph-vert)
+    // V-histogram: vertical projection with valley markers
     // -------------------------------------------------------------------------
 
-    private void drawVHistogram(float[] sums, int fw, int fh) {
+    private void drawVHistogram(PreProcessingResult r) {
         GraphicsContext gc = vHistCanvas.getGraphicsContext2D();
         gc.setFill(Color.rgb(20, 20, 20));
         gc.fillRect(0, 0, PREVIEW_W, VHIST_H);
+
+        float[] sums = r.vColSums();
+        int fw = r.frameWidth(), fh = r.frameHeight();
         if (sums == null || sums.length == 0 || fw == 0 || fh == 0) return;
 
         double scale = Math.min(PREVIEW_W / (double) fw, PREVIEW_H / (double) fh);
@@ -130,6 +144,7 @@ public class LineAreasDetectionView {
         float maxV = 1f;
         for (float v : sums) if (v > maxV) maxV = v;
 
+        // bars
         for (int col = 0; col < sums.length; col++) {
             double x  = offX + col * scale;
             double bw = Math.max(1.0, scale);
@@ -137,6 +152,25 @@ public class LineAreasDetectionView {
             gc.setFill(Color.rgb(100, 160, 255, 0.85));
             gc.fillRect(x, VHIST_H - bh, bw, bh);
         }
+
+        // valley threshold line (25% of max) — amber horizontal
+        double vThreshY = VHIST_H - (0.25 * (VHIST_H - 2));
+        gc.setStroke(Color.rgb(255, 180, 0, 0.7));
+        gc.setLineWidth(0.8);
+        gc.strokeLine(offX, vThreshY, offX + rendW, vThreshY);
+
+        // valley tick marks — bright amber verticals
+        int[] valleys = r.vValleys();
+        if (valleys != null) {
+            gc.setStroke(Color.rgb(255, 220, 0, 0.95));
+            gc.setLineWidth(1.5);
+            for (int v : valleys) {
+                double x = offX + v * scale;
+                gc.strokeLine(x, 0, x, VHIST_H);
+            }
+        }
+
+        // baseline
         gc.setStroke(Color.rgb(180, 180, 180, 0.4));
         gc.setLineWidth(0.5);
         gc.strokeLine(offX, VHIST_H - 1, offX + rendW, VHIST_H - 1);
@@ -196,34 +230,16 @@ public class LineAreasDetectionView {
             idx++;
         }
 
-        // --- Hough grid overlay ---
-        if (lastGrid != null) {
-            // horizontal grid lines (line-height period)
-            gc.setStroke(Color.rgb(0, 200, 255, 0.50));
-            gc.setLineWidth(0.8);
-            int lineH = lastGrid.bestLineH(), gridY0 = lastGrid.bestLineY0();
-            for (int y = gridY0; y < fh; y += lineH) {
-                double dy = offY + y * scale;
-                gc.strokeLine(offX, dy, offX + rendW, dy);
-            }
-            for (int y = gridY0 - lineH; y >= 0; y -= lineH) {
-                double dy = offY + y * scale;
-                gc.strokeLine(offX, dy, offX + rendW, dy);
-            }
-
-            // vertical grid lines (char-width period)
-            gc.setStroke(Color.rgb(255, 190, 0, 0.40));
-            gc.setLineWidth(0.8);
-            int charW = lastGrid.bestCharW(), gridX0 = lastGrid.bestCharX0();
-            for (int x = gridX0; x < fw; x += charW) {
-                double dx = offX + x * scale;
-                gc.strokeLine(dx, offY, dx, offY + rendH);
-            }
-            for (int x = gridX0 - charW; x >= 0; x -= charW) {
-                double dx = offX + x * scale;
-                gc.strokeLine(dx, offY, dx, offY + rendH);
+        // --- vertical valley separators (from V-histogram) ---
+        if (lastPreProc != null && lastPreProc.vValleys() != null) {
+            gc.setStroke(Color.rgb(180, 100, 255, 0.65));
+            gc.setLineWidth(1.0);
+            for (int v : lastPreProc.vValleys()) {
+                double x = offX + v * scale;
+                gc.strokeLine(x, offY, x, offY + rendH);
             }
         }
+
     }
 
     // -------------------------------------------------------------------------

@@ -14,6 +14,7 @@ public record PreProcessingResult(
 
         float[] hRowSums,                // horizontal projection: float[h], sum (open+close) per row
         float[] vColSums,                // vertical   projection: float[w], sum (open+close) per col
+        int[]   vValleys,                // column indices of vertical valley separators (from vColSums)
 
         WritableImage morphHoriz,        // morphological opening  — (horiz)
         WritableImage morphVert,         // morphological opening  | (vert)

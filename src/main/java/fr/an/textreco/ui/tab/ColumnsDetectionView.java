@@ -1,5 +1,7 @@
 package fr.an.textreco.ui.tab;
 
+import fr.an.textreco.model.GridDetectionResult;
+import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.ui.ProcessingPipeline;
@@ -10,7 +12,6 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.PixelReader;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -20,9 +21,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class ColumnsDetectionView {
 
@@ -57,11 +55,15 @@ public class ColumnsDetectionView {
 
     // --- state ---
     private TextLineExtractionResult lastResult   = null;
-    private int[]                    colStarts    = new int[0]; // detected column start pixels
-    private int                      charWidth    = 0;          // median column width
+    private GridDetectionResult      lastGrid     = null;
+    private PreProcessingResult      lastPreProc  = null;
+    private int[]                    colStarts    = new int[0];
+    private int                      charWidth    = 0;
 
     public ColumnsDetectionView(ProcessingPipeline pipeline) {
-        pipeline.getTextLinesProperty().addListener((obs, o, r) -> { if (r != null) onResult(r); });
+        pipeline.getTextLinesProperty()    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
+        pipeline.getGridDetectionProperty().addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
+        pipeline.getPreProcessingProperty().addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
         lineView.setPreserveRatio(true);
         lineView.setFitWidth(LINE_VIEW_W);
         lineView.setFitHeight(LINE_VIEW_H);
@@ -82,7 +84,7 @@ public class ColumnsDetectionView {
         lineSlider.setPrefWidth(400);
         lineSlider.valueProperty().addListener((obs, o, n) -> {
             lineValLabel.setText(String.valueOf(n.intValue()));
-            recomputeColumns();
+            refreshDisplay();
         });
 
         // col index slider
@@ -141,105 +143,41 @@ public class ColumnsDetectionView {
             lineSlider.setMax(lineCount - 1);
             if (lineSlider.getValue() >= lineCount) lineSlider.setValue(0);
         }
-        recomputeColumns();
+        refreshDisplay();
     }
 
     // -------------------------------------------------------------------------
     // column detection from line image
     // -------------------------------------------------------------------------
 
-    private void recomputeColumns() {
-        colStarts = new int[0];
-        charWidth = 0;
+    private void onGridOrPreProc() {
+        if (lastGrid == null || lastPreProc == null) return;
 
-        if (lastResult == null || lastResult.lines().isEmpty()) {
-            colSlider.setMax(0);
-            colSlider.setValue(0);
-            refreshDisplay();
-            return;
+        int charW = lastGrid.bestCharW();
+        int x0    = lastGrid.bestCharX0();
+        int fw    = lastPreProc.frameWidth();
+
+        // rebuild colStarts from the detected periodic grid
+        int count = fw > 0 && charW > 0 ? (fw - x0 + charW - 1) / charW : 0;
+        int[] starts = new int[count];
+        for (int i = 0; i < count; i++) starts[i] = x0 + i * charW;
+        // include columns that extend backwards from x0 to 0
+        int backCount = x0 / charW;
+        if (backCount > 0) {
+            int[] full = new int[backCount + count];
+            for (int i = 0; i < backCount; i++) full[i] = x0 - (backCount - i) * charW;
+            System.arraycopy(starts, 0, full, backCount, count);
+            starts = full;
         }
 
-        int lineIdx = clampedLineIdx();
-        TextLine line = lastResult.lines().get(lineIdx);
-        WritableImage img = line.lineImage();
-        if (img == null || img.getWidth() == 0 || img.getHeight() == 0) {
-            refreshDisplay();
-            return;
-        }
-
-        int imgW = (int) img.getWidth();
-        int imgH = (int) img.getHeight();
-
-        // --- vertical projection from WritableImage pixel data ---
-        float[] colSums = new float[imgW];
-        PixelReader pr = img.getPixelReader();
-        for (int x = 0; x < imgW; x++) {
-            float sum = 0f;
-            for (int y = 0; y < imgH; y++) {
-                int argb = pr.getArgb(x, y);
-                int r = (argb >> 16) & 0xFF;
-                int g = (argb >>  8) & 0xFF;
-                int b =  argb        & 0xFF;
-                sum += (r + g + b) / 3f;
-            }
-            colSums[x] = sum;
-        }
-
-        // --- smooth ---
-        float[] smoothed = new float[imgW];
-        boxSmooth(colSums, smoothed, imgW, 2);
-
-        // --- detect column valleys (same algorithm as TextLineExtractorProcessor) ---
-        float globalMax = 1f;
-        for (float v : smoothed) if (v > globalMax) globalMax = v;
-
-        double vThresh = 0.25 * globalMax;
-        int    vHWin   = 3;
-        List<Integer> valleys = new ArrayList<>();
-        valleys.add(0);
-        for (int x = 1; x < imgW - 1; x++) {
-            if (smoothed[x] >= vThresh) continue;
-            boolean isMin = true;
-            int lo = Math.max(0, x - vHWin), hi = Math.min(imgW - 1, x + vHWin);
-            for (int k = lo; k <= hi; k++) if (smoothed[k] < smoothed[x]) { isMin = false; break; }
-            if (isMin) valleys.add(x);
-        }
-        valleys.add(imgW);
-
-        // --- merge adjacent valleys (no peak between them) ---
-        double peakMin = 0.05 * globalMax;
-        List<Integer> merged = new ArrayList<>();
-        merged.add(valleys.get(0));
-        for (int i = 1; i < valleys.size() - 1; i++) {
-            int prev = merged.get(merged.size() - 1);
-            int cur  = valleys.get(i);
-            boolean hasPeak = false;
-            for (int x = prev; x <= cur; x++) if (smoothed[x] > peakMin) { hasPeak = true; break; }
-            if (hasPeak) merged.add(cur);
-        }
-        merged.add(valleys.get(valleys.size() - 1));
-
-        // --- build column start list and compute median char width ---
-        List<Integer> starts = new ArrayList<>();
-        List<Integer> widths = new ArrayList<>();
-        for (int i = 0; i < merged.size() - 1; i++) {
-            int lo = merged.get(i), hi = merged.get(i + 1);
-            int w = hi - lo;
-            if (w < 2) continue;
-            starts.add(lo);
-            widths.add(w);
-        }
-
-        colStarts = starts.stream().mapToInt(Integer::intValue).toArray();
-        charWidth = widths.isEmpty() ? 0 : median(widths);
+        colStarts = starts;
+        charWidth = charW;
 
         int numCols = colStarts.length;
         colSlider.setMax(numCols == 0 ? 0 : numCols - 1);
         if (colSlider.getValue() >= numCols) colSlider.setValue(0);
 
-        // draw histogram with valley/column markers
-        drawHistogram(colSums, smoothed, merged, imgW, globalMax);
-
+        drawHistogram();
         refreshDisplay();
     }
 
@@ -247,43 +185,61 @@ public class ColumnsDetectionView {
     // histogram drawing
     // -------------------------------------------------------------------------
 
-    private void drawHistogram(float[] raw, float[] smooth, List<Integer> valleys,
-                                int imgW, float globalMax) {
+    private void drawHistogram() {
         GraphicsContext gc = histCanvas.getGraphicsContext2D();
         gc.setFill(Color.rgb(20, 20, 20));
         gc.fillRect(0, 0, HIST_W, HIST_H);
-        if (imgW == 0) return;
+        if (lastPreProc == null) return;
 
-        int offset = (int) offsetSlider.getValue();
-        double scaleX = HIST_W / (double) imgW;
+        float[] sums = lastPreProc.vColSums();
+        int[]   valleys = lastPreProc.vValleys();
+        int     fw  = lastPreProc.frameWidth();
+        if (sums == null || sums.length == 0 || fw == 0) return;
+
+        double scaleX = HIST_W / (double) fw;
         double barH   = HIST_H - 4;
 
-        // raw — dim grey
-        for (int x = 0; x < raw.length; x++) {
-            double px = (x + offset) * scaleX;
-            double bh = (raw[x] / globalMax) * barH;
-            gc.setFill(Color.rgb(70, 70, 70, 0.6));
+        float globalMax = 1f;
+        for (float v : sums) if (v > globalMax) globalMax = v;
+
+        // bars — blue
+        for (int x = 0; x < sums.length; x++) {
+            double px = x * scaleX;
+            double bh = (sums[x] / globalMax) * barH;
+            gc.setFill(Color.rgb(100, 160, 255, 0.85));
             gc.fillRect(px, HIST_H - bh, Math.max(1, scaleX), bh);
         }
 
-        // smoothed — green polyline
-        gc.setStroke(Color.rgb(0, 220, 100, 0.95));
-        gc.setLineWidth(1.5);
-        gc.beginPath();
-        for (int x = 0; x < smooth.length; x++) {
-            double px = (x + offset) * scaleX + scaleX * 0.5;
-            double py = HIST_H - (smooth[x] / globalMax) * barH;
-            if (x == 0) gc.moveTo(px, py); else gc.lineTo(px, py);
-        }
-        gc.stroke();
+        // valley threshold line — dim amber horizontal
+        double vThreshY = HIST_H - (0.25 * barH);
+        gc.setStroke(Color.rgb(255, 180, 0, 0.55));
+        gc.setLineWidth(0.8);
+        gc.strokeLine(0, vThreshY, HIST_W, vThreshY);
 
-        // valley lines — amber
-        gc.setStroke(Color.rgb(255, 180, 0, 0.8));
-        gc.setLineWidth(1.0);
-        for (int v : valleys) {
-            if (v == 0 || v == imgW) continue;
-            double px = (v + offset) * scaleX;
-            gc.strokeLine(px, 0, px, HIST_H);
+        // valley markers — bright amber verticals (from PreProcessingResult)
+        if (valleys != null) {
+            gc.setStroke(Color.rgb(255, 220, 0, 0.9));
+            gc.setLineWidth(1.2);
+            for (int v : valleys) {
+                double px = v * scaleX;
+                gc.strokeLine(px, 0, px, HIST_H);
+            }
+        }
+
+        // grid lines from detected charWidth — purple
+        if (lastGrid != null) {
+            int charW = lastGrid.bestCharW();
+            int x0    = lastGrid.bestCharX0();
+            gc.setStroke(Color.rgb(180, 100, 255, 0.7));
+            gc.setLineWidth(1.0);
+            for (int x = x0; x < fw; x += charW) {
+                double px = x * scaleX;
+                gc.strokeLine(px, 0, px, HIST_H);
+            }
+            for (int x = x0 - charW; x >= 0; x -= charW) {
+                double px = x * scaleX;
+                gc.strokeLine(px, 0, px, HIST_H);
+            }
         }
     }
 
@@ -387,22 +343,6 @@ public class ColumnsDetectionView {
         if (lastResult == null) return 0;
         int n = lastResult.lines().size();
         return n == 0 ? 0 : Math.max(0, Math.min((int) lineSlider.getValue(), n - 1));
-    }
-
-    private static void boxSmooth(float[] src, float[] dst, int n, int radius) {
-        if (radius <= 0) { System.arraycopy(src, 0, dst, 0, n); return; }
-        double[] prefix = new double[n + 1];
-        for (int i = 0; i < n; i++) prefix[i + 1] = prefix[i] + src[i];
-        for (int i = 0; i < n; i++) {
-            int lo = Math.max(0, i - radius), hi = Math.min(n - 1, i + radius);
-            dst[i] = (float) ((prefix[hi + 1] - prefix[lo]) / (hi - lo + 1));
-        }
-    }
-
-    private static int median(List<Integer> vals) {
-        List<Integer> sorted = new ArrayList<>(vals);
-        sorted.sort(Integer::compare);
-        return sorted.get(sorted.size() / 2);
     }
 
     private VBox panel(String title, javafx.scene.Node content) {

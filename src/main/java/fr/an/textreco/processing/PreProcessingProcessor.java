@@ -160,8 +160,10 @@ public class PreProcessingProcessor {
         if (vColSums.length != w) vColSums = new float[w];
         colSumMat.get(0, 0, vColSums);
 
+        int[] vValleys = detectValleys(vColSums, w);
+
         return new PreProcessingResult(w, h, binaryImg,
-                hRowSums.clone(), vColSums.clone(),
+                hRowSums.clone(), vColSums.clone(), vValleys,
                 morphH, morphV, morphFwd, morphBwd,
                 closeH, closeV, closeFwd, closeBwd);
     }
@@ -233,6 +235,55 @@ public class PreProcessingProcessor {
             k.put(i, j, 1);
         }
         return k;
+    }
+
+    /**
+     * Detects valley separators in a 1-D projection signal using the same
+     * grouping + deepest-midpoint algorithm as TextLineExtractorProcessor.
+     * Thresholds are fixed at 25% of global max (valley) and 5% (peak minimum).
+     */
+    private static int[] detectValleys(float[] sums, int n) {
+        float globalMax = 1f;
+        for (int i = 0; i < n; i++) if (sums[i] > globalMax) globalMax = sums[i];
+
+        double vThresh  = 0.25 * globalMax;
+        double peakMin  = 0.05 * globalMax;
+        int    halfWin  = 3;
+
+        // candidate local minima below vThresh
+        java.util.List<Integer> candidates = new java.util.ArrayList<>();
+        for (int i = 1; i < n - 1; i++) {
+            if (sums[i] >= vThresh) continue;
+            boolean isMin = true;
+            for (int k = Math.max(0, i - halfWin); k <= Math.min(n - 1, i + halfWin); k++)
+                if (sums[k] < sums[i]) { isMin = false; break; }
+            if (isMin) candidates.add(i);
+        }
+
+        // group consecutive candidates with no peak between them; keep deepest midpoint
+        java.util.List<Integer> result = new java.util.ArrayList<>();
+        int ci = 0;
+        while (ci < candidates.size()) {
+            int groupStart = ci;
+            while (ci + 1 < candidates.size()) {
+                boolean hasPeak = false;
+                for (int x = candidates.get(ci); x <= candidates.get(ci + 1); x++)
+                    if (sums[x] > peakMin) { hasPeak = true; break; }
+                if (hasPeak) break;
+                ci++;
+            }
+            int deepest = candidates.get(groupStart);
+            for (int g = groupStart; g <= ci; g++) {
+                int x = candidates.get(g);
+                if (sums[x] < sums[deepest]) deepest = x;
+            }
+            int lo = deepest, hi = deepest;
+            while (lo > 0     && sums[lo - 1] <= vThresh) lo--;
+            while (hi < n - 1 && sums[hi + 1] <= vThresh) hi++;
+            result.add((lo + hi) / 2);
+            ci++;
+        }
+        return result.stream().mapToInt(Integer::intValue).toArray();
     }
 
     public void release() {
