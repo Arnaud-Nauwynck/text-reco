@@ -14,7 +14,10 @@ import org.opencv.videoio.VideoCapture;
 public class CameraService {
 
     @Getter
-    private final ObjectProperty<Image> imageProperty = new SimpleObjectProperty<>();
+    private final ObjectProperty<Image> rawImageProperty = new SimpleObjectProperty<>();
+
+    @Getter
+    private final ObjectProperty<Image> processedImageProperty = new SimpleObjectProperty<>();
 
     private final FrameProcessor processor;
 
@@ -57,12 +60,15 @@ public class CameraService {
                 continue;
             }
 
+            Image rawFxImage = FxImageUtils.matToJavaFXWritableImage(frame.raw);
+
             processor.process(frame, context);
 
-            Image fxImage = FxImageUtils.matToJavaFXWritableImage(frame.processed);
+            Image processedFxImage = FxImageUtils.matToJavaFXWritableImage(frame.processed);
 
             Platform.runLater(() -> {
-                imageProperty.set(fxImage);
+                rawImageProperty.set(rawFxImage);
+                processedImageProperty.set(processedFxImage);
             });
         }
 

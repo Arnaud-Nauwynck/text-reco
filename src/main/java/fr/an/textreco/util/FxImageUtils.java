@@ -6,9 +6,6 @@ import javafx.scene.image.WritableImage;
 import org.opencv.core.Mat;
 import org.opencv.imgproc.Imgproc;
 
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
-
 public class FxImageUtils {
 
 //    public static Image matToImage(Mat mat) {
@@ -29,14 +26,14 @@ public class FxImageUtils {
         return image;
     }
 
-    private static BufferedImage matToAwtBufferedImage(Mat mat) {
-        int type = mat.channels() == 1 ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_3BYTE_BGR;
-        int bufferSize = mat.channels() * mat.cols() * mat.rows();
-        byte[] buffer = new byte[bufferSize];
-        mat.get(0, 0, buffer);
-        BufferedImage image = new BufferedImage(mat.cols(), mat.rows(), type);
-        byte[] target = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
-        System.arraycopy(buffer, 0, target, 0, buffer.length);
-        return image;
-    }
+//    private static BufferedImage matToAwtBufferedImage(Mat mat) {
+//        int type = mat.channels() == 1 ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_3BYTE_BGR;
+//        int bufferSize = mat.channels() * mat.cols() * mat.rows();
+//        byte[] buffer = new byte[bufferSize];
+//        mat.get(0, 0, buffer);
+//        BufferedImage image = new BufferedImage(mat.cols(), mat.rows(), type);
+//        byte[] target = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+//        System.arraycopy(buffer, 0, target, 0, buffer.length);
+//        return image;
+//    }
 }
