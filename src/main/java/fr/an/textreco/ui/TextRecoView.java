@@ -6,7 +6,6 @@ import fr.an.textreco.processing.PerspectiveTransformProcessor;
 import fr.an.textreco.processing.PreProcessingProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
 import fr.an.textreco.ui.tab.ColumnsDetectionView;
-import fr.an.textreco.ui.tab.GridDetectionView;
 import fr.an.textreco.ui.tab.ImageInputView;
 import fr.an.textreco.ui.tab.LineAreasDetectionView;
 import fr.an.textreco.ui.tab.PerspectiveTransformView;
@@ -40,7 +39,6 @@ public class TextRecoView {
                 buildTab("Pre-Processing", new PreProcessingView(pipeline).getRoot()),
                 buildTab("Line Areas",     new LineAreasDetectionView(pipeline, lineExtractor).getRoot()),
                 buildTab("Columns",        new ColumnsDetectionView(pipeline).getRoot()),
-                buildTab("Grid",           new GridDetectionView(pipeline).getRoot()),
                 buildTab("Settings",       new SettingsView(appSettings, edgeSettings, preProcessingProcessor, lineExtractor).getRoot()),
                 buildTab("Perfs",          new ProcessingMonitoringView(pipeline).getRoot()),
                 buildTab("Results",        new ResultTextView().getRoot())

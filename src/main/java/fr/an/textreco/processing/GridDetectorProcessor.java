@@ -6,6 +6,8 @@ import javafx.beans.property.SimpleIntegerProperty;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 
+import java.util.Arrays;
+
 /**
  * Detects a regular character grid (fixed line-height and char-width) using a
  * Hough-period accumulator on each axis independently.
@@ -21,9 +23,9 @@ import org.opencv.core.Mat;
  */
 public class GridDetectorProcessor {
 
-    private final IntegerProperty minLineH = new SimpleIntegerProperty(8);
+    private final IntegerProperty minLineH = new SimpleIntegerProperty(30);
     private final IntegerProperty maxLineH = new SimpleIntegerProperty(60);
-    private final IntegerProperty minCharW = new SimpleIntegerProperty(4);
+    private final IntegerProperty minCharW = new SimpleIntegerProperty(15);
     private final IntegerProperty maxCharW = new SimpleIntegerProperty(40);
 
     public IntegerProperty minLineHProperty() { return minLineH; }
@@ -67,6 +69,8 @@ public class GridDetectorProcessor {
         // clamp to valid ranges
         minH = Math.max(2, Math.min(minH, h / 2));
         maxH = Math.max(minH + 1, Math.min(maxH, h));
+        // char width must not exceed half the minimum line height
+        maxW = Math.min(maxW, minH / 2);
         minW = Math.max(2, Math.min(minW, w / 2));
         maxW = Math.max(minW + 1, Math.min(maxW, w));
 
@@ -95,43 +99,99 @@ public class GridDetectorProcessor {
             }
         }
 
-        // --- find Y peak ---
-        int bestLineH = minH, bestLineY0 = 0;
-        float bestYScore = -1;
-        for (int Ti = 0; Ti < numLineH; Ti++) {
-            int T = Ti + minH;
-            // score = max offset vote / expected votes per offset bin
-            // (bins near 0 get more votes due to text-area density, so use max)
-            float maxVote = 0;
-            int   maxOff  = 0;
-            for (int o = 0; o < T; o++) {
-                if (accY[Ti][o] > maxVote) { maxVote = accY[Ti][o]; maxOff = o; }
+        // --- find best Y period: valley-median first, Hough offset to refine ---
+        //
+        // Pure Hough contrast is fooled by harmonics: T=2k scores as well as T=k because
+        // every gap at period k is also a gap at period 2k.  Instead:
+        //   1. detect valleys in rowSums → inter-valley gaps → median gap = best lineH estimate
+        //   2. at that lineH, find the minimum Hough-offset bin → bestLineY0
+        //   Fallback: if fewer than 2 valleys found, use best Hough contrast (original method).
+
+        int bestLineH  = valleyMedianPeriod(rowSums, h, minH, maxH);
+        int bestLineY0 = 0;
+
+        if (bestLineH > 0) {
+            // refine offset: minimum bin in the Hough slice at bestLineH
+            int Ti = bestLineH - minH;
+            if (Ti >= 0 && Ti < numLineH) {
+                float minVote = Float.MAX_VALUE;
+                for (int o = 0; o < bestLineH; o++) {
+                    if (accY[Ti][o] < minVote) { minVote = accY[Ti][o]; bestLineY0 = o; }
+                }
             }
-            // normalise by the number of rows that fall into this offset bin for period T
-            int binCount = h / T + (maxOff < h % T ? 1 : 0);
-            float score = binCount > 0 ? maxVote / binCount : 0;
-            if (score > bestYScore) { bestYScore = score; bestLineH = T; bestLineY0 = maxOff; }
+        } else {
+            // fallback: best Hough contrast
+            bestLineH = minH;
+            float bestYScore = -1;
+            for (int Ti = 0; Ti < numLineH; Ti++) {
+                int T = Ti + minH;
+                float maxVote = 0, minVote = Float.MAX_VALUE;
+                int   minOff  = 0;
+                for (int o = 0; o < T; o++) {
+                    if (accY[Ti][o] > maxVote) maxVote = accY[Ti][o];
+                    if (accY[Ti][o] < minVote) { minVote = accY[Ti][o]; minOff = o; }
+                }
+                float score = maxVote > 0 ? (maxVote - minVote) / maxVote : 0;
+                if (score > bestYScore) { bestYScore = score; bestLineH = T; bestLineY0 = minOff; }
+            }
         }
 
-        // --- find X peak ---
+        // --- find best X period and offset ---
         int bestCharW = minW, bestCharX0 = 0;
         float bestXScore = -1;
         for (int Ti = 0; Ti < numCharW; Ti++) {
             int T = Ti + minW;
-            float maxVote = 0;
-            int   maxOff  = 0;
+            float maxVote = 0, minVote = Float.MAX_VALUE;
+            int   minOff  = 0;
             for (int o = 0; o < T; o++) {
-                if (accX[Ti][o] > maxVote) { maxVote = accX[Ti][o]; maxOff = o; }
+                if (accX[Ti][o] > maxVote) maxVote = accX[Ti][o];
+                if (accX[Ti][o] < minVote) { minVote = accX[Ti][o]; minOff = o; }
             }
-            int binCount = w / T + (maxOff < w % T ? 1 : 0);
-            float score = binCount > 0 ? maxVote / binCount : 0;
-            if (score > bestXScore) { bestXScore = score; bestCharW = T; bestCharX0 = maxOff; }
+            float mean  = maxVote > 0 ? maxVote : 1f;
+            float score = (maxVote - minVote) / mean;
+            if (score > bestXScore) { bestXScore = score; bestCharW = T; bestCharX0 = minOff; }
         }
 
         return new GridDetectionResult(
                 w, h,
                 minH, maxH, bestLineH, bestLineY0, accY,
                 minW, maxW, bestCharW, bestCharX0, accX);
+    }
+
+    /**
+     * Detects valleys in a 1-D signal and returns the median inter-valley gap,
+     * clamped to [minT, maxT].  Returns 0 if fewer than 2 valleys are found.
+     *
+     * A valley is a local minimum whose value is below 25 % of the global maximum
+     * and that is strictly minimal within a ±halfWin neighbourhood.
+     */
+    private static int valleyMedianPeriod(float[] sig, int n, int minT, int maxT) {
+        float globalMax = 0;
+        for (int i = 0; i < n; i++) if (sig[i] > globalMax) globalMax = sig[i];
+        if (globalMax == 0) return 0;
+
+        float thresh  = 0.25f * globalMax;
+        int   halfWin = Math.max(2, minT / 4);
+
+        java.util.List<Integer> valleys = new java.util.ArrayList<>();
+        for (int r = halfWin; r < n - halfWin; r++) {
+            if (sig[r] >= thresh) continue;
+            boolean isMin = true;
+            for (int k = r - halfWin; k <= r + halfWin; k++) {
+                if (sig[k] < sig[r]) { isMin = false; break; }
+            }
+            if (isMin) valleys.add(r);
+        }
+
+        if (valleys.size() < 2) return 0;
+
+        // collect inter-valley gaps
+        int[] gaps = new int[valleys.size() - 1];
+        for (int i = 0; i < gaps.length; i++) gaps[i] = valleys.get(i + 1) - valleys.get(i);
+        Arrays.sort(gaps);
+        int median = gaps[gaps.length / 2];
+
+        return Math.max(minT, Math.min(maxT, median));
     }
 
     /** Row-wise sum: for each row r, rowSums[r] = sum over columns of (matA[r,c] + matB[r,c]). */

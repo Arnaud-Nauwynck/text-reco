@@ -153,14 +153,14 @@ public class ProcessingPipeline {
                         ? null : preProcessingProcessor.process(warped);
                 long t7 = System.nanoTime();
 
-                TextLineExtractionResult linesResult = (preProc == null)
-                        ? null : lineExtractor.process(preProc.hRowSums(), warped);
-                long t8 = System.nanoTime();
-
                 GridDetectionResult gridResult = (preProc == null) ? null
                         : gridDetector.process(
                                 preProcessingProcessor.morphHorizMat, preProcessingProcessor.closeHorizMat,
                                 preProcessingProcessor.morphVertMat,  preProcessingProcessor.closeVertMat);
+
+                TextLineExtractionResult linesResult = (preProc == null)
+                        ? null : lineExtractor.process(preProc.hRowSums(), warped, gridResult);
+                long t8 = System.nanoTime();
 
                 double fps = prevFrameNs > 0 ? 1e9 / (t0 - prevFrameNs) : 0;
                 prevFrameNs = t0;

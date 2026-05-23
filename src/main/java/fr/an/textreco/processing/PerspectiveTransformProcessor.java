@@ -17,8 +17,8 @@ public class PerspectiveTransformProcessor implements FrameProcessor {
     private volatile int outputHeight = 480;
 
     // source corners in image-relative coordinates [0..1], order: TL, TR, BR, BL
-    private volatile double[] srcXRel = {0.1, 0.9, 0.9, 0.1};
-    private volatile double[] srcYRel = {0.1, 0.1, 0.9, 0.9};
+    private volatile double[] srcXRel = {0.0, 1.0, 1.0, 0.0};
+    private volatile double[] srcYRel = {0.0, 0.0, 1.0, 1.0};
 
     // pre-allocated per-frame scratch — only reallocated when output size changes
     private final Point[]       srcPts    = new Point[]{new Point(), new Point(), new Point(), new Point()};

@@ -39,8 +39,8 @@ public class PerspectiveTransformView {
     private final ImageView warpedView   = new ImageView();
 
     // corner positions in display-pixel space; order: TL, TR, BR, BL
-    private final double[] cx = {DISPLAY_W * 0.1, DISPLAY_W * 0.9, DISPLAY_W * 0.9, DISPLAY_W * 0.1};
-    private final double[] cy = {DISPLAY_H * 0.1, DISPLAY_H * 0.1, DISPLAY_H * 0.9, DISPLAY_H * 0.9};
+    private final double[] cx = {0, DISPLAY_W, DISPLAY_W, 0};
+    private final double[] cy = {0, 0, DISPLAY_H, DISPLAY_H};
 
     private final Circle[] handles = new Circle[4];
     private final String[] cornerLabels = {"TL", "TR", "BR", "BL"};

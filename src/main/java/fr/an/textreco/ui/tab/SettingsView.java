@@ -6,7 +6,6 @@ import fr.an.textreco.model.EdgeDetectorSettings;
 import fr.an.textreco.processing.PreProcessingProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
 import javafx.beans.binding.Bindings;
-import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -139,38 +138,9 @@ public class SettingsView {
     }
 
     private Tab buildLineDetectionTab(TextLineExtractorProcessor lineExtractor) {
-        Label smoothVal = monoLabel("0");
-        Slider smoothSlider = slider(0, 15, 5);
-        bindIntSlider(smoothSlider, smoothVal, lineExtractor.smoothRadiusProperty());
-
-        Label valleyThrVal = monoLabel("0");
-        Slider valleyThrSlider = slider(0.01, 0.5, 0.1);
-        bindDblSlider(valleyThrSlider, valleyThrVal, "%.2f", lineExtractor.valleyThresholdProperty());
-
-        Label valleyWinVal = monoLabel("0");
-        Slider valleyWinSlider = slider(1, 20, 5);
-        bindIntSlider(valleyWinSlider, valleyWinVal, lineExtractor.valleyHalfWinProperty());
-
-        Label minPeakVal = monoLabel("0");
-        Slider minPeakSlider = slider(0.01, 0.3, 0.05);
-        bindDblSlider(minPeakSlider, minPeakVal, "%.2f", lineExtractor.minPeakRatioProperty());
-
-        Label minHeightVal = monoLabel("0");
-        Slider minHeightSlider = slider(2, 30, 5);
-        bindIntSlider(minHeightSlider, minHeightVal, lineExtractor.minLineHeightProperty());
-
-        Label maxHeightVal = monoLabel("0");
-        Slider maxHeightSlider = slider(20, 200, 20);
-        bindIntSlider(maxHeightSlider, maxHeightVal, lineExtractor.maxLineHeightProperty());
-
-        VBox box = new VBox(6,
-                hrow(styledLabel("Smooth radius (rows):"),      smoothSlider,    smoothVal),
-                hrow(styledLabel("Valley threshold:"),          valleyThrSlider, valleyThrVal),
-                hrow(styledLabel("Valley half-window (rows):"), valleyWinSlider, valleyWinVal),
-                hrow(styledLabel("Min peak ratio:"),            minPeakSlider,   minPeakVal),
-                hrow(styledLabel("Min height (px):"),           minHeightSlider, minHeightVal),
-                hrow(styledLabel("Max height (px):"),           maxHeightSlider, maxHeightVal));
-        return subTab("Line Detection", padded(box));
+        Label info = styledLabel("Lines are computed from the grid: y0 + N × lineH (see Line Areas tab).");
+        info.setWrapText(true);
+        return subTab("Line Detection", padded(info));
     }
 
     // -------------------------------------------------------------------------
@@ -182,11 +152,6 @@ public class SettingsView {
         prop.addListener((obs, o, n) -> slider.setValue(n.intValue()));
         slider.setValue(prop.get());
         label.textProperty().bind(prop.asString());
-    }
-
-    private static void bindDblSlider(Slider slider, Label label, String fmt, DoubleProperty prop) {
-        slider.valueProperty().bindBidirectional(prop);
-        label.textProperty().bind(Bindings.format(fmt, prop));
     }
 
     // -------------------------------------------------------------------------
