@@ -1,5 +1,6 @@
 package fr.an.textreco.ui.tab;
 
+import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
@@ -43,12 +44,14 @@ public class LineAreasDetectionView {
     private final ScrollPane lineScroll;
 
     private final TextLineExtractorProcessor extractor;
+    private GridDetectionResult lastGrid = null;
 
     public LineAreasDetectionView(ProcessingPipeline pipeline, TextLineExtractorProcessor extractor) {
         this.extractor = extractor;
         pipeline.getPerspectiveImageProperty().addListener((obs, o, img) -> { if (img != null) setWarpedImage(img); });
         pipeline.getPreProcessingProperty()   .addListener((obs, o, r)   -> onPreProcessing(r));
         pipeline.getTextLinesProperty()       .addListener((obs, o, r)   -> { if (r != null) onResult(r); });
+        pipeline.getGridDetectionProperty()   .addListener((obs, o, r)   -> { lastGrid = r; });
 
         warpedView.setPreserveRatio(true);
         warpedView.setFitWidth(PREVIEW_W);
@@ -191,6 +194,35 @@ public class LineAreasDetectionView {
             gc.fillText(String.format("y%d–%d", line.rowStart(), line.rowEnd()),
                     offX + rendW - 62, midY);
             idx++;
+        }
+
+        // --- Hough grid overlay ---
+        if (lastGrid != null) {
+            // horizontal grid lines (line-height period)
+            gc.setStroke(Color.rgb(0, 200, 255, 0.50));
+            gc.setLineWidth(0.8);
+            int lineH = lastGrid.bestLineH(), gridY0 = lastGrid.bestLineY0();
+            for (int y = gridY0; y < fh; y += lineH) {
+                double dy = offY + y * scale;
+                gc.strokeLine(offX, dy, offX + rendW, dy);
+            }
+            for (int y = gridY0 - lineH; y >= 0; y -= lineH) {
+                double dy = offY + y * scale;
+                gc.strokeLine(offX, dy, offX + rendW, dy);
+            }
+
+            // vertical grid lines (char-width period)
+            gc.setStroke(Color.rgb(255, 190, 0, 0.40));
+            gc.setLineWidth(0.8);
+            int charW = lastGrid.bestCharW(), gridX0 = lastGrid.bestCharX0();
+            for (int x = gridX0; x < fw; x += charW) {
+                double dx = offX + x * scale;
+                gc.strokeLine(dx, offY, dx, offY + rendH);
+            }
+            for (int x = gridX0 - charW; x >= 0; x -= charW) {
+                double dx = offX + x * scale;
+                gc.strokeLine(dx, offY, dx, offY + rendH);
+            }
         }
     }
 

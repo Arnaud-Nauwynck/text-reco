@@ -11,7 +11,10 @@
       "Read(//c/tmp/**)",
       "Bash(jar xf *)",
       "Bash(javap -p org/opencv/videoio/Videoio.class)",
-      "Bash(javap -p org/opencv/videoio/VideoCapture.class)"
+      "Bash(javap -p org/opencv/videoio/VideoCapture.class)",
+      "Bash(mvn compile *)",
+      "Bash(./mvnw compile *)",
+      "Bash(cmd //c \"cd /d C:\\\\\\\\arn\\\\\\\\devPerso\\\\\\\\my-github\\\\\\\\text-reco && mvn compile 2>&1\")"
     ]
   }
 }

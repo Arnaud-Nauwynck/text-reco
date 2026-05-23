@@ -1,11 +1,13 @@
 package fr.an.textreco.ui;
 
 import fr.an.textreco.model.FrameStats;
+import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.InputSource;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.CameraCapture;
 import fr.an.textreco.processing.EdgeDetectorProcessor;
+import fr.an.textreco.processing.GridDetectorProcessor;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
 import fr.an.textreco.processing.PreProcessingProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
@@ -38,6 +40,7 @@ public class ProcessingPipeline {
     @Getter private final ObjectProperty<WritableImage>            perspectiveImageProperty = new SimpleObjectProperty<>();
     @Getter private final ObjectProperty<PreProcessingResult>      preProcessingProperty    = new SimpleObjectProperty<>();
     @Getter private final ObjectProperty<TextLineExtractionResult> textLinesProperty        = new SimpleObjectProperty<>();
+    @Getter private final ObjectProperty<GridDetectionResult>      gridDetectionProperty    = new SimpleObjectProperty<>();
     @Getter private final ObjectProperty<FrameStats>               frameStatsProperty       = new SimpleObjectProperty<>();
 
     // -------------------------------------------------------------------------
@@ -52,6 +55,7 @@ public class ProcessingPipeline {
     private final PerspectiveTransformProcessor perspectiveProcessor;
     private final PreProcessingProcessor        preProcessingProcessor;
     private final TextLineExtractorProcessor    lineExtractor;
+    @Getter private final GridDetectorProcessor gridDetector = new GridDetectorProcessor();
 
     // ImageBuffers for raw and perspective — conversions that don't belong to a single processor
     private final ImageBuffer rawImageBuf         = new ImageBuffer();
@@ -150,11 +154,13 @@ public class ProcessingPipeline {
                 long t7 = System.nanoTime();
 
                 TextLineExtractionResult linesResult = (preProc == null)
-                        ? null : lineExtractor.process(
-                                preProcessingProcessor.morphHorizMat,
-                                preProcessingProcessor.morphVertMat,
-                                warped);
+                        ? null : lineExtractor.process(preProc.hRowSums(), warped);
                 long t8 = System.nanoTime();
+
+                GridDetectionResult gridResult = (preProc == null) ? null
+                        : gridDetector.process(
+                                preProcessingProcessor.morphHorizMat, preProcessingProcessor.closeHorizMat,
+                                preProcessingProcessor.morphVertMat,  preProcessingProcessor.closeVertMat);
 
                 double fps = prevFrameNs > 0 ? 1e9 / (t0 - prevFrameNs) : 0;
                 prevFrameNs = t0;
@@ -169,12 +175,14 @@ public class ProcessingPipeline {
                 final WritableImage fPerspImg = perspectiveImg;
                 final PreProcessingResult fPreProc = preProc;
                 final TextLineExtractionResult fLines = linesResult;
+                final GridDetectionResult fGrid = gridResult;
                 Platform.runLater(() -> {
                     rawImageProperty        .set(rawImg);
                     edgeImageProperty       .set(edgeImg);
                     if (fPerspImg  != null) perspectiveImageProperty.set(fPerspImg);
                     if (fPreProc   != null) preProcessingProperty   .set(fPreProc);
                     if (fLines     != null) textLinesProperty        .set(fLines);
+                    if (fGrid      != null) gridDetectionProperty   .set(fGrid);
                     frameStatsProperty.set(stats);
                 });
 
@@ -187,6 +195,7 @@ public class ProcessingPipeline {
             perspectiveProcessor.release();
             preProcessingProcessor.release();
             lineExtractor.release();
+            gridDetector.release();
             rawImageBuf.release();
             edgeImageBuf.release();
             perspectiveImageBuf.release();

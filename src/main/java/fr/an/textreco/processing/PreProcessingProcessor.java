@@ -46,7 +46,9 @@ public class PreProcessingProcessor {
     // persistent morph results — readable by TextLineExtractorProcessor after process() returns
     public final Mat morphHorizMat  = new Mat();
     public final Mat morphVertMat   = new Mat();
-    private final Mat morphOut    = new Mat();   // scratch for diag openings
+    public final Mat closeHorizMat  = new Mat();
+    public final Mat closeVertMat   = new Mat();
+    private final Mat morphOut    = new Mat();   // scratch for diag/closing ops
 
     // structuring elements — rebuilt when seHalfLen changes
     private int lastSeHalfLen = -1;
@@ -60,11 +62,18 @@ public class PreProcessingProcessor {
     private float[] vColSums = new float[0];
 
     // ImageBuffers for FX conversion — one per output image
-    private final FxImageUtils.ImageBuffer binaryBuf   = new FxImageUtils.ImageBuffer();
-    private final FxImageUtils.ImageBuffer morphHBuf   = new FxImageUtils.ImageBuffer();
-    private final FxImageUtils.ImageBuffer morphVBuf   = new FxImageUtils.ImageBuffer();
-    private final FxImageUtils.ImageBuffer morphFwdBuf = new FxImageUtils.ImageBuffer();
-    private final FxImageUtils.ImageBuffer morphBwdBuf = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer binaryBuf    = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer morphHBuf    = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer morphVBuf    = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer morphFwdBuf  = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer morphBwdBuf  = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer closeHBuf    = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer closeVBuf    = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer closeFwdBuf  = new FxImageUtils.ImageBuffer();
+    private final FxImageUtils.ImageBuffer closeBwdBuf  = new FxImageUtils.ImageBuffer();
+
+    // scratch Mat for histogram summing
+    private final Mat histScratch = new Mat();
 
     // scratch BGR wrapper for single-channel → BGR conversion before ImageBuffer
     private final Mat bgrTmp = new Mat();
@@ -118,29 +127,43 @@ public class PreProcessingProcessor {
         rebuildKernelsIfNeeded();
 
         // --- morphological openings (horiz/vert into persistent Mats for line extractor) ---
-        Imgproc.morphologyEx(binary, morphHorizMat, Imgproc.MORPH_OPEN, seHoriz);
-        Imgproc.morphologyEx(binary, morphVertMat,  Imgproc.MORPH_OPEN, seVert);
-        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_OPEN, seDiagFwd);
+        Imgproc.morphologyEx(binary, morphHorizMat, Imgproc.MORPH_OPEN,  seHoriz);
+        Imgproc.morphologyEx(binary, morphVertMat,  Imgproc.MORPH_OPEN,  seVert);
+        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_OPEN,  seDiagFwd);
         var morphFwd = matToImage(morphOut, morphFwdBuf);
-        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_OPEN, seDiagBwd);
+        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_OPEN,  seDiagBwd);
         var morphBwd = matToImage(morphOut, morphBwdBuf);
 
         var morphH = matToImage(morphHorizMat, morphHBuf);
         var morphV = matToImage(morphVertMat,  morphVBuf);
 
-        // --- horizontal projection on morph-horiz (rows with horizontal strokes) ---
-        Core.reduce(morphHorizMat, rowSumMat, 1, Core.REDUCE_SUM, CvType.CV_32F);
+        // --- morphological closings (same 4 directions) ---
+        Imgproc.morphologyEx(binary, closeHorizMat, Imgproc.MORPH_CLOSE, seHoriz);
+        Imgproc.morphologyEx(binary, closeVertMat,  Imgproc.MORPH_CLOSE, seVert);
+        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_CLOSE, seDiagFwd);
+        var closeFwd = matToImage(morphOut, closeFwdBuf);
+        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_CLOSE, seDiagBwd);
+        var closeBwd = matToImage(morphOut, closeBwdBuf);
+
+        var closeH = matToImage(closeHorizMat, closeHBuf);
+        var closeV = matToImage(closeVertMat,  closeVBuf);
+
+        // --- horizontal projection: sum of opening + closing on horiz SE ---
+        Core.add(morphHorizMat, closeHorizMat, histScratch);
+        Core.reduce(histScratch, rowSumMat, 1, Core.REDUCE_SUM, CvType.CV_32F);
         if (hRowSums.length != h) hRowSums = new float[h];
         rowSumMat.get(0, 0, hRowSums);
 
-        // --- vertical projection on morph-vert (cols with vertical strokes) ---
-        Core.reduce(morphVertMat, colSumMat, 0, Core.REDUCE_SUM, CvType.CV_32F);
+        // --- vertical projection: sum of opening + closing on vert SE ---
+        Core.add(morphVertMat, closeVertMat, histScratch);
+        Core.reduce(histScratch, colSumMat, 0, Core.REDUCE_SUM, CvType.CV_32F);
         if (vColSums.length != w) vColSums = new float[w];
         colSumMat.get(0, 0, vColSums);
 
         return new PreProcessingResult(w, h, binaryImg,
                 hRowSums.clone(), vColSums.clone(),
-                morphH, morphV, morphFwd, morphBwd);
+                morphH, morphV, morphFwd, morphBwd,
+                closeH, closeV, closeFwd, closeBwd);
     }
 
     // -------------------------------------------------------------------------
@@ -214,10 +237,13 @@ public class PreProcessingProcessor {
 
     public void release() {
         gray.release(); tophat.release(); tophatSE.release(); binary.release();
-        rowSumMat.release(); colSumMat.release(); morphOut.release();
+        rowSumMat.release(); colSumMat.release(); morphOut.release(); histScratch.release();
         morphHorizMat.release(); morphVertMat.release();
+        closeHorizMat.release(); closeVertMat.release();
         seHoriz.release(); seVert.release(); seDiagFwd.release(); seDiagBwd.release();
         binaryBuf.release(); morphHBuf.release(); morphVBuf.release();
-        morphFwdBuf.release(); morphBwdBuf.release(); bgrTmp.release();
+        morphFwdBuf.release(); morphBwdBuf.release();
+        closeHBuf.release(); closeVBuf.release(); closeFwdBuf.release(); closeBwdBuf.release();
+        bgrTmp.release();
     }
 }

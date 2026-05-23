@@ -10,13 +10,18 @@ public record PreProcessingResult(
         int frameWidth,
         int frameHeight,
 
-        WritableImage binaryImage,       // adaptive-threshold binary
+        WritableImage binaryImage,       // binarized binary
 
-        float[] hRowSums,                // horizontal projection: float[h], sum of lit pixels per row
-        float[] vColSums,                // vertical   projection: float[w], sum of lit pixels per col
+        float[] hRowSums,                // horizontal projection: float[h], sum (open+close) per row
+        float[] vColSums,                // vertical   projection: float[w], sum (open+close) per col
 
-        WritableImage morphHoriz,        // morphological opening with horizontal line  ——
-        WritableImage morphVert,         // morphological opening with vertical   line  |
-        WritableImage morphDiagFwd,      // morphological opening with forward diagonal /
-        WritableImage morphDiagBwd       // morphological opening with backward diagonal \
+        WritableImage morphHoriz,        // morphological opening  — (horiz)
+        WritableImage morphVert,         // morphological opening  | (vert)
+        WritableImage morphDiagFwd,      // morphological opening  / (diag fwd)
+        WritableImage morphDiagBwd,      // morphological opening  \ (diag bwd)
+
+        WritableImage closeHoriz,        // morphological closing  — (horiz)
+        WritableImage closeVert,         // morphological closing  | (vert)
+        WritableImage closeDiagFwd,      // morphological closing  / (diag fwd)
+        WritableImage closeDiagBwd       // morphological closing  \ (diag bwd)
 ) {}

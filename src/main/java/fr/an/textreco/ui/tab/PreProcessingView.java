@@ -21,11 +21,15 @@ public class PreProcessingView {
     @Getter
     private final VBox root = new VBox(8);
 
-    private final ImageView binaryView   = imageView(BIG_W,   BIG_H);
-    private final ImageView morphHView   = imageView(MORPH_W, MORPH_H);
-    private final ImageView morphVView   = imageView(MORPH_W, MORPH_H);
-    private final ImageView morphFwdView = imageView(MORPH_W, MORPH_H);
-    private final ImageView morphBwdView = imageView(MORPH_W, MORPH_H);
+    private final ImageView binaryView    = imageView(BIG_W,   BIG_H);
+    private final ImageView morphHView    = imageView(MORPH_W, MORPH_H);
+    private final ImageView morphVView    = imageView(MORPH_W, MORPH_H);
+    private final ImageView morphFwdView  = imageView(MORPH_W, MORPH_H);
+    private final ImageView morphBwdView  = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeHView    = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeVView    = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeFwdView  = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeBwdView  = imageView(MORPH_W, MORPH_H);
 
     public PreProcessingView(ProcessingPipeline pipeline) {
         pipeline.getPreProcessingProperty().addListener((obs, o, r) -> onResult(r));
@@ -36,14 +40,23 @@ public class PreProcessingView {
         topRow.setAlignment(Pos.TOP_LEFT);
 
         HBox morphRow = new HBox(8,
-                panel("Open  —  (horiz)",    morphHView),
-                panel("Open  |  (vert)",     morphVView),
-                panel("Open  /  (diag fwd)", morphFwdView),
-                panel("Open  \\  (diag bwd)", morphBwdView));
+                panel("Open  —",  morphHView),
+                panel("Open  |",  morphVView),
+                panel("Open  /",  morphFwdView),
+                panel("Open  \\", morphBwdView));
         morphRow.setAlignment(Pos.TOP_LEFT);
-        morphRow.setPadding(new Insets(0));
 
-        root.getChildren().addAll(topRow, sectionLabel("Morphological Openings"), morphRow);
+        HBox closeRow = new HBox(8,
+                panel("Close  —",  closeHView),
+                panel("Close  |",  closeVView),
+                panel("Close  /",  closeFwdView),
+                panel("Close  \\", closeBwdView));
+        closeRow.setAlignment(Pos.TOP_LEFT);
+
+        root.getChildren().addAll(
+                topRow,
+                sectionLabel("Morphological Openings"), morphRow,
+                sectionLabel("Morphological Closings"), closeRow);
     }
 
     private void onResult(PreProcessingResult r) {
@@ -53,6 +66,10 @@ public class PreProcessingView {
         morphVView  .setImage(r.morphVert());
         morphFwdView.setImage(r.morphDiagFwd());
         morphBwdView.setImage(r.morphDiagBwd());
+        closeHView  .setImage(r.closeHoriz());
+        closeVView  .setImage(r.closeVert());
+        closeFwdView.setImage(r.closeDiagFwd());
+        closeBwdView.setImage(r.closeDiagBwd());
     }
 
     // -------------------------------------------------------------------------
