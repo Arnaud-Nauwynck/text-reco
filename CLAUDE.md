@@ -3,7 +3,8 @@
 ## Project Overview
 
 **text-reco** is a JavaFX desktop application for real-time text recognition using OpenCV.  
-Goal: capture live camera frames, preprocess them (edge detection, thresholding), and extract text via OCR.
+Goal: capture live camera frames, preprocess them (perspective, binaries, detect lines incrementally),
+and extract text via OCR.
 
 - Java 21, Maven
 - JavaFX 25-ea (controls, graphics)
@@ -13,6 +14,9 @@ Goal: capture live camera frames, preprocess them (edge detection, thresholding)
 ## Code Structure
 
 All application code lives under `fr.an.textreco`.
+
+The architecture should strictly follow the MVCseparation: Model contains only data, View contains only UI components,
+and Controller (Processing, CameraService) mediates between them.
 
 ```
 src/main/java/fr/an/textreco/

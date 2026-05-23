@@ -1,6 +1,7 @@
 package fr.an.textreco.ui.tab;
 
-import fr.an.textreco.processing.EdgeDetectorProcessor;
+import fr.an.textreco.model.EdgeDetectorSettings;
+import fr.an.textreco.model.FrameStats;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
@@ -16,54 +17,93 @@ public class ProcessingTab {
     @Getter
     private final VBox root = new VBox(12);
 
-    private final Label fpsLabel = new Label("FPS: —");
-    private final Label resolutionLabel = new Label("Resolution: —");
+    // stats labels
+    private final Label fpsLabel         = statLabel("FPS: —");
+    private final Label resolutionLabel  = statLabel("Resolution: —");
+    private final Label totalLabel       = statLabel("Total: —");
+    private final Label captureLabel     = statLabel("Capture: —");
+    private final Label rawConvertLabel  = statLabel("Raw→RGB: —");
+    private final Label edgeProcLabel    = statLabel("Edge detect: —");
+    private final Label edgeConvLabel    = statLabel("Edge→RGB: —");
+    private final Label perspProcLabel   = statLabel("Perspective warp: —");
+    private final Label perspConvLabel   = statLabel("Persp→RGB: —");
 
-    private long lastFrameTime = 0;
+    // exponential moving average for FPS smoothing (α = 0.1)
+    private double smoothFps = 0;
 
-    public ProcessingTab(EdgeDetectorProcessor processor) {
+    public ProcessingTab(EdgeDetectorSettings settings) {
         root.setPadding(new Insets(16));
+        root.setStyle("-fx-background-color: #1e1e1e;");
 
+        // --- Canny sliders ---
         Label sectionCanny = sectionLabel("Canny Edge Detection");
+        GridPane sliderGrid = buildSliderGrid(settings);
 
+        // --- Timing table ---
+        Label sectionStats = sectionLabel("Frame Stats");
+
+        GridPane statsGrid = new GridPane();
+        statsGrid.setHgap(20);
+        statsGrid.setVgap(6);
+
+        addRow(statsGrid, 0, "Resolution",       resolutionLabel);
+        addRow(statsGrid, 1, "FPS (smoothed)",    fpsLabel);
+        addRow(statsGrid, 2, "Total frame time",  totalLabel);
+        addRow(statsGrid, 3, "  capture.read",    captureLabel);
+        addRow(statsGrid, 4, "  raw → RGB",       rawConvertLabel);
+        addRow(statsGrid, 5, "  edge detect",     edgeProcLabel);
+        addRow(statsGrid, 6, "  edge → RGB",      edgeConvLabel);
+        addRow(statsGrid, 7, "  persp warp",      perspProcLabel);
+        addRow(statsGrid, 8, "  persp → RGB",     perspConvLabel);
+
+        root.getChildren().addAll(
+                sectionCanny, sliderGrid,
+                new Separator(),
+                sectionStats, statsGrid
+        );
+    }
+
+    private GridPane buildSliderGrid(EdgeDetectorSettings settings) {
         GridPane grid = new GridPane();
         grid.setHgap(12);
         grid.setVgap(10);
 
-        Slider threshold1Slider = new Slider(0, 300, processor.getCannyThreshold1());
-        threshold1Slider.setShowTickLabels(true);
-        threshold1Slider.setShowTickMarks(true);
-        threshold1Slider.setMajorTickUnit(50);
-        Label threshold1Value = new Label(String.valueOf((int) processor.getCannyThreshold1()));
-        threshold1Slider.valueProperty().addListener((obs, o, n) -> {
-            processor.setCannyThreshold1(n.doubleValue());
-            threshold1Value.setText(String.valueOf(n.intValue()));
+        Label val1 = statLabel(String.valueOf((int) settings.getCannyThreshold1()));
+        Slider s1 = slider(0, 300, settings.getCannyThreshold1(), 50);
+        s1.valueProperty().addListener((obs, o, n) -> {
+            settings.setCannyThreshold1(n.doubleValue());
+            val1.setText(String.valueOf(n.intValue()));
         });
 
-        Slider threshold2Slider = new Slider(0, 500, processor.getCannyThreshold2());
-        threshold2Slider.setShowTickLabels(true);
-        threshold2Slider.setShowTickMarks(true);
-        threshold2Slider.setMajorTickUnit(50);
-        Label threshold2Value = new Label(String.valueOf((int) processor.getCannyThreshold2()));
-        threshold2Slider.valueProperty().addListener((obs, o, n) -> {
-            processor.setCannyThreshold2(n.doubleValue());
-            threshold2Value.setText(String.valueOf(n.intValue()));
+        Label val2 = statLabel(String.valueOf((int) settings.getCannyThreshold2()));
+        Slider s2 = slider(0, 500, settings.getCannyThreshold2(), 50);
+        s2.valueProperty().addListener((obs, o, n) -> {
+            settings.setCannyThreshold2(n.doubleValue());
+            val2.setText(String.valueOf(n.intValue()));
         });
 
-        grid.add(new Label("Threshold 1 (low):"), 0, 0);
-        grid.add(threshold1Slider, 1, 0);
-        grid.add(threshold1Value, 2, 0);
-        grid.add(new Label("Threshold 2 (high):"), 0, 1);
-        grid.add(threshold2Slider, 1, 1);
-        grid.add(threshold2Value, 2, 1);
+        grid.add(rowLabel("Threshold 1 (low):"),  0, 0); grid.add(s1, 1, 0); grid.add(val1, 2, 0);
+        grid.add(rowLabel("Threshold 2 (high):"), 0, 1); grid.add(s2, 1, 1); grid.add(val2, 2, 1);
+        return grid;
+    }
 
-        Label sectionStats = sectionLabel("Frame Stats");
-        fpsLabel.setStyle("-fx-text-fill: #cccccc;");
-        resolutionLabel.setStyle("-fx-text-fill: #cccccc;");
+    private void addRow(GridPane grid, int row, String name, Label valueLabel) {
+        grid.add(rowLabel(name), 0, row);
+        grid.add(valueLabel,     1, row);
+    }
 
-        root.getChildren().addAll(sectionCanny, grid, new Separator(), sectionStats, fpsLabel, resolutionLabel);
-        root.setStyle("-fx-background-color: #1e1e1e;");
-        applyLabelStyle(grid);
+    public void onStats(FrameStats s) {
+        smoothFps = smoothFps == 0 ? s.fps() : smoothFps * 0.9 + s.fps() * 0.1;
+
+        resolutionLabel .setText(s.width() + " × " + s.height());
+        fpsLabel        .setText(String.format("%.1f fps", smoothFps));
+        totalLabel      .setText(s.totalMs()       + " ms");
+        captureLabel    .setText(s.captureMs()     + " ms");
+        rawConvertLabel .setText(s.rawConvertMs()  + " ms");
+        edgeProcLabel   .setText(s.edgeProcessMs() + " ms");
+        edgeConvLabel   .setText(s.edgeConvertMs() + " ms");
+        perspProcLabel  .setText(s.perspProcessMs()+ " ms");
+        perspConvLabel  .setText(s.perspConvertMs()+ " ms");
     }
 
     private Label sectionLabel(String text) {
@@ -73,20 +113,23 @@ public class ProcessingTab {
         return l;
     }
 
-    private void applyLabelStyle(GridPane grid) {
-        grid.getChildren().stream()
-                .filter(n -> n instanceof Label)
-                .forEach(n -> ((Label) n).setStyle("-fx-text-fill: #cccccc;"));
+    private static Label rowLabel(String text) {
+        Label l = new Label(text);
+        l.setStyle("-fx-text-fill: #aaaaaa;");
+        return l;
     }
 
-    public void onFrame(int width, int height) {
-        long now = System.currentTimeMillis();
-        if (lastFrameTime > 0) {
-            long delta = now - lastFrameTime;
-            double fps = delta > 0 ? 1000.0 / delta : 0;
-            fpsLabel.setText(String.format("FPS: %.1f", fps));
-        }
-        lastFrameTime = now;
-        resolutionLabel.setText("Resolution: " + width + " × " + height);
+    private static Label statLabel(String text) {
+        Label l = new Label(text);
+        l.setStyle("-fx-text-fill: #eeeeee; -fx-font-family: monospace;");
+        return l;
+    }
+
+    private static Slider slider(double min, double max, double value, double tickUnit) {
+        Slider s = new Slider(min, max, value);
+        s.setShowTickLabels(true);
+        s.setShowTickMarks(true);
+        s.setMajorTickUnit(tickUnit);
+        return s;
     }
 }

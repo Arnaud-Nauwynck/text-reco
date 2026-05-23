@@ -10,6 +10,7 @@
         <java.version>21</java.version>
         <javafx.version>25-ea+21</javafx.version>
         <opencv.version>4.9.0-0</opencv.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
 	<dependencies>
@@ -62,9 +63,14 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.14.1</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
-                    <encoding>UTF-8</encoding>
+                    <release>${java.version}</release>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.42</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>

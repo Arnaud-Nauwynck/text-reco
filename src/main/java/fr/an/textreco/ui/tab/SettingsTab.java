@@ -1,6 +1,8 @@
 package fr.an.textreco.ui.tab;
 
+import fr.an.textreco.model.AppSettings;
 import javafx.geometry.Insets;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Spinner;
@@ -16,35 +18,38 @@ public class SettingsTab {
     private final VBox root = new VBox(12);
 
     @Getter
-    private final Spinner<Integer> cameraIndexSpinner = new Spinner<>(0, 9, 0);
-
+    private final Spinner<Integer> cameraIndexSpinner    = new Spinner<>(0, 9, 0);
     @Getter
-    private final Spinner<Integer> captureWidthSpinner = new Spinner<>(320, 3840, 640, 160);
-
+    private final Spinner<Integer> captureWidthSpinner   = new Spinner<>(320, 3840, 640, 160);
     @Getter
-    private final Spinner<Integer> captureHeightSpinner = new Spinner<>(240, 2160, 480, 120);
+    private final Spinner<Integer> captureHeightSpinner  = new Spinner<>(240, 2160, 480, 120);
 
-    public SettingsTab() {
+    public SettingsTab(AppSettings appSettings) {
         root.setPadding(new Insets(16));
+        root.setStyle("-fx-background-color: #1e1e1e;");
 
+        // --- Camera section ---
         Label sectionCamera = sectionLabel("Camera");
-
         cameraIndexSpinner.setEditable(true);
         captureWidthSpinner.setEditable(true);
         captureHeightSpinner.setEditable(true);
 
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(10);
-        grid.add(styledLabel("Camera index:"), 0, 0);
-        grid.add(cameraIndexSpinner, 1, 0);
-        grid.add(styledLabel("Capture width:"), 0, 1);
-        grid.add(captureWidthSpinner, 1, 1);
-        grid.add(styledLabel("Capture height:"), 0, 2);
-        grid.add(captureHeightSpinner, 1, 2);
+        GridPane cameraGrid = new GridPane();
+        cameraGrid.setHgap(12);
+        cameraGrid.setVgap(10);
+        cameraGrid.add(styledLabel("Camera index:"),   0, 0); cameraGrid.add(cameraIndexSpinner,   1, 0);
+        cameraGrid.add(styledLabel("Capture width:"),  0, 1); cameraGrid.add(captureWidthSpinner,   1, 1);
+        cameraGrid.add(styledLabel("Capture height:"), 0, 2); cameraGrid.add(captureHeightSpinner,  1, 2);
 
-        root.getChildren().addAll(sectionCamera, grid, new Separator());
-        root.setStyle("-fx-background-color: #1e1e1e;");
+        // --- Processing section ---
+        Label sectionProcessing = sectionLabel("Processing");
+
+        CheckBox darkThemeBox = new CheckBox("Dark theme  (white text on black background)");
+        darkThemeBox.setSelected(appSettings.isDarkTheme());
+        darkThemeBox.setStyle("-fx-text-fill: #cccccc;");
+        darkThemeBox.selectedProperty().addListener((obs, o, n) -> appSettings.setDarkTheme(n));
+
+        root.getChildren().addAll(sectionCamera, cameraGrid, new Separator(), sectionProcessing, darkThemeBox);
     }
 
     private Label sectionLabel(String text) {

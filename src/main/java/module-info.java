@@ -6,6 +6,8 @@ module textreco {
     requires java.desktop;
 
     exports fr.an.textreco;
+    exports fr.an.textreco.model;
+    exports fr.an.textreco.processing;
     exports fr.an.textreco.ui;
     exports fr.an.textreco.ui.tab;
 }

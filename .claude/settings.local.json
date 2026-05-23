@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mvn -v)"
+      "Bash(mvn -v)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(mvn validate *)",
+      "Bash(xargs grep *)",
+      "Bash(jar tf *)",
+      "Read(//c/tmp/**)",
+      "Bash(jar xf *)",
+      "Bash(javap -p org/opencv/videoio/Videoio.class)",
+      "Bash(javap -p org/opencv/videoio/VideoCapture.class)"
     ]
   }
 }
