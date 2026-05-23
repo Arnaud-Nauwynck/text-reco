@@ -21,8 +21,8 @@ public class TextRecoJavaFxApplication extends Application {
 
     @Override
     public void start(Stage stage) {
-        TextRecoView view = new TextRecoView();
         EdgeDetectorProcessor processor = new EdgeDetectorProcessor();
+        TextRecoView view = new TextRecoView(processor);
 
         CameraService cameraService = new CameraService(processor);
 

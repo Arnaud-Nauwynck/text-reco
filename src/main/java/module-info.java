@@ -7,4 +7,5 @@ module textreco {
 
     exports fr.an.textreco;
     exports fr.an.textreco.ui;
+    exports fr.an.textreco.ui.tab;
 }
