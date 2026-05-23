@@ -4,6 +4,7 @@ import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
+import fr.an.textreco.processing.CharTemplateClassifier;
 import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -50,8 +51,9 @@ public class ColumnsDetectionView {
     private final Canvas histCanvas = new Canvas(HIST_W, HIST_H);
 
     // --- zoomed char crop ---
-    private final ImageView charView  = new ImageView();
-    private final Label     infoLabel = monoLabel("");
+    private final ImageView charView       = new ImageView();
+    private final Label     infoLabel      = monoLabel("");
+    private final Label     classifiedLabel = monoLabel("");
 
     // --- state ---
     private TextLineExtractionResult lastResult   = null;
@@ -60,7 +62,10 @@ public class ColumnsDetectionView {
     private int[]                    colStarts    = new int[0];
     private int                      charWidth    = 0;
 
+    private final CharTemplateClassifier classifier;
+
     public ColumnsDetectionView(ProcessingPipeline pipeline) {
+        this.classifier = pipeline.getCharClassifier();
         pipeline.getTextLinesProperty()    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
         pipeline.getGridDetectionProperty().addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
         pipeline.getPreProcessingProperty().addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
@@ -114,7 +119,10 @@ public class ColumnsDetectionView {
         lineStack.setAlignment(Pos.TOP_LEFT);
         lineStack.setMaxSize(LINE_VIEW_W, LINE_VIEW_H);
 
-        VBox charPanel = panel("Char Crop", charView);
+        classifiedLabel.setFont(javafx.scene.text.Font.font("Monospaced", javafx.scene.text.FontWeight.BOLD, 36));
+        classifiedLabel.setStyle("-fx-text-fill: #88ff88; -fx-font-family: monospace;");
+
+        VBox charPanel = panel("Char Crop", new VBox(4, charView, classifiedLabel));
         VBox infoPanel = panel("Info", infoLabel);
 
         HBox bottomRow = new HBox(12, charPanel, infoPanel);
@@ -153,19 +161,21 @@ public class ColumnsDetectionView {
     private void onGridOrPreProc() {
         if (lastGrid == null || lastPreProc == null) return;
 
-        int charW = lastGrid.bestCharW();
-        int x0    = lastGrid.bestCharX0();
+        double charWd = lastGrid.bestCharW();
+        double x0d    = lastGrid.bestCharX0();
         int fw    = lastPreProc.frameWidth();
+        int charW = (int) Math.max(1, Math.round(charWd));
+        int x0    = (int) Math.round(x0d);
 
         // rebuild colStarts from the detected periodic grid
         int count = fw > 0 && charW > 0 ? (fw - x0 + charW - 1) / charW : 0;
         int[] starts = new int[count];
-        for (int i = 0; i < count; i++) starts[i] = x0 + i * charW;
+        for (int i = 0; i < count; i++) starts[i] = (int) Math.round(x0d + i * charWd);
         // include columns that extend backwards from x0 to 0
-        int backCount = x0 / charW;
+        int backCount = charW > 0 ? x0 / charW : 0;
         if (backCount > 0) {
             int[] full = new int[backCount + count];
-            for (int i = 0; i < backCount; i++) full[i] = x0 - (backCount - i) * charW;
+            for (int i = 0; i < backCount; i++) full[i] = (int) Math.round(x0d - (backCount - i) * charWd);
             System.arraycopy(starts, 0, full, backCount, count);
             starts = full;
         }
@@ -228,15 +238,15 @@ public class ColumnsDetectionView {
 
         // grid lines from detected charWidth — purple
         if (lastGrid != null) {
-            int charW = lastGrid.bestCharW();
-            int x0    = lastGrid.bestCharX0();
+            double charW = lastGrid.bestCharW();
+            double x0    = lastGrid.bestCharX0();
             gc.setStroke(Color.rgb(180, 100, 255, 0.7));
             gc.setLineWidth(1.0);
-            for (int x = x0; x < fw; x += charW) {
+            for (double x = x0; x < fw; x += charW) {
                 double px = x * scaleX;
                 gc.strokeLine(px, 0, px, HIST_H);
             }
-            for (int x = x0 - charW; x >= 0; x -= charW) {
+            for (double x = x0 - charW; x >= 0; x -= charW) {
                 double px = x * scaleX;
                 gc.strokeLine(px, 0, px, HIST_H);
             }
@@ -254,6 +264,7 @@ public class ColumnsDetectionView {
         if (lastResult == null || lastResult.lines().isEmpty()) {
             lineView.setImage(null);
             charView.setImage(null);
+            classifiedLabel.setText("");
             infoLabel.setText("No lines detected.");
             return;
         }
@@ -316,7 +327,16 @@ public class ColumnsDetectionView {
             int cropX = Math.max(0, cxPx);
             int cropW = Math.max(1, Math.min(cxEnd - cxPx, imgW - cropX));
             if (cropW > 0 && imgH > 0) {
-                charView.setImage(new WritableImage(lineImg.getPixelReader(), cropX, 0, cropW, imgH));
+                WritableImage cropImg = new WritableImage(lineImg.getPixelReader(), cropX, 0, cropW, imgH);
+                charView.setImage(cropImg);
+                // Classify the crop
+                org.opencv.core.Mat greyMat = fr.an.textreco.util.FxImageUtils.writableImageToGreyMat(cropImg);
+                try {
+                    CharTemplateClassifier.Result r = classifier.classify(greyMat);
+                    classifiedLabel.setText(r.toString());
+                } finally {
+                    greyMat.release();
+                }
             }
 
             infoLabel.setText(String.format(
@@ -328,6 +348,7 @@ public class ColumnsDetectionView {
                     charWidth, offset));
         } else {
             charView.setImage(null);
+            classifiedLabel.setText("");
             infoLabel.setText(String.format(
                     "Line %d  y=%d–%d  h=%dpx%n%d columns detected  charWidth=%dpx",
                     lineIdx, line.rowStart(), line.rowEnd(), line.height(),

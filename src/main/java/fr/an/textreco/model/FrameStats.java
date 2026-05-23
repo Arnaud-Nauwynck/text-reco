@@ -10,5 +10,6 @@ public record FrameStats(
         long   edgeConvertMs,
         long   perspProcessMs,
         long   perspConvertMs,
-        long   totalMs
+        long   totalMs,
+        long   tessOcrMs
 ) {}

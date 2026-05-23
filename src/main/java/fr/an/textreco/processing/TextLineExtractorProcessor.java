@@ -38,22 +38,22 @@ public class TextLineExtractorProcessor {
                     new float[0], new int[0]);
         }
 
-        int lineH = grid.bestLineH();
-        int y0    = grid.bestLineY0();
+        double lineH = grid.bestLineH();
+        double y0    = grid.bestLineY0();
         if (lineH <= 0) {
             return new TextLineExtractionResult(w, h, List.of(), hRowSums, new float[0], new int[0]);
         }
 
         // Find the first N such that y0 + N*lineH >= 0
-        int startN = (y0 >= 0) ? 0 : (int) Math.ceil((double) -y0 / lineH);
+        int startN = (y0 >= 0) ? 0 : (int) Math.ceil(-y0 / lineH);
 
         List<TextLine> lines   = new ArrayList<>();
         List<Integer>  valleys = new ArrayList<>();
         int bufIdx = 0;
 
         for (int n = startN; ; n++) {
-            int top    = y0 + n * lineH;
-            int bottom = top + lineH;
+            int top    = (int) Math.round(y0 + n * lineH);
+            int bottom = (int) Math.round(y0 + (n + 1) * lineH);
             if (top >= h) break;
             bottom = Math.min(bottom, h);
 

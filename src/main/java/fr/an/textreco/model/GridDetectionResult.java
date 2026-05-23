@@ -1,32 +1,35 @@
 package fr.an.textreco.model;
 
 /**
- * Result of the Hough-period grid detector.
+ * Result of the grid detector for one frame.
  *
- * Both axes are detected independently by accumulating votes:
- *   for each lit pixel at position p, vote for offset = p mod period,
- *   for every candidate period in [min..max].
- *
- * The accumulator is a 2D array [periodIndex][offset], where
- *   periodIndex = period - minPeriod, offset ∈ [0, period).
- * Because offsets live in [0,period) and period varies, the array is
- * stored flattened as float[numPeriods][maxPeriod] — unused cells are 0.
+ * Detection pipeline (same for Y/X):
+ *   1. raw valleys  — all sub-threshold local minima in the projection histogram
+ *   2. diff histogram — histogram of inter-valley gaps; modal gap = best period
+ *   3. filtered valleys — raw valleys that fit  offset + N × period  (within tolerance)
+ *   4. Hough offset — minimum bin of acc[period] gives the gap phase
  */
 public record GridDetectionResult(
         int frameWidth,
         int frameHeight,
 
         // --- Y axis (line grid) ---
-        int   minLineH,       // smallest candidate line height
-        int   maxLineH,       // largest  candidate line height
-        int   bestLineH,      // detected line height (period)
-        int   bestLineY0,     // detected line grid offset (y0 = first line top mod bestLineH)
-        float[][] accY,       // [periodIdx][offset]  periodIdx = lineH - minLineH
+        int    minLineH,
+        int    maxLineH,
+        double bestLineH,       // modal inter-valley gap (period), sub-pixel precision
+        double bestLineY0,      // gap phase:  gap rows ≡ bestLineY0  (mod bestLineH)
+        int[]  hValleys,        // all detected H-histogram valley midpoints
+        int[]  hValleysFiltered,// valleys that match the periodic grid
+        int[]  diffHistY,       // histogram of inter-valley gaps, index = gap size - minLineH
+        float[][] accY,         // Hough accumulator [periodIdx][offset]
 
         // --- X axis (char grid) ---
-        int   minCharW,
-        int   maxCharW,
-        int   bestCharW,
-        int   bestCharX0,
-        float[][] accX        // [periodIdx][offset]  periodIdx = charW - minCharW
+        int    minCharW,
+        int    maxCharW,
+        double bestCharW,
+        double bestCharX0,
+        int[] vValleys,
+        int[] vValleysFiltered,
+        int[] diffHistX,
+        float[][] accX
 ) {}

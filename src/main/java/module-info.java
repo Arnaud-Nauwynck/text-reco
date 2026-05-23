@@ -4,6 +4,7 @@ module textreco {
     requires opencv;
     requires static lombok;
     requires java.desktop;
+    requires tess4j;
 
     exports fr.an.textreco;
     exports fr.an.textreco.model;

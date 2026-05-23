@@ -87,15 +87,23 @@ public class ImageInputView {
                 // Prefer highest index (USB enumerates after built-in)
                 CameraDevice preferred = found.get(found.size() - 1);
                 cameraCombo.setValue(preferred);
-                pipeline.selectCamera(preferred.index());
+                // Don't switch to camera if a file is already loaded and frozen
+                if (!pipeline.getFrozenProperty().get()) {
+                    pipeline.selectCamera(preferred.index());
+                }
             });
         });
         probeThread.setDaemon(true);
         probeThread.start();
 
         cameraCombo.setOnAction(e -> {
+            if (pipeline.getFrozenProperty().get()) {
+                return; // ignore camera changes while frozen
+            }
             CameraDevice selected = cameraCombo.getValue();
-            if (selected != null) pipeline.selectCamera(selected.index());
+            if (selected != null) {
+                pipeline.selectCamera(selected.index());
+            }
         });
 
         // --- Open image file ---
@@ -108,7 +116,9 @@ public class ImageInputView {
                     new FileChooser.ExtensionFilter("All Files", "*.*"));
             Window window = root.getScene() != null ? root.getScene().getWindow() : null;
             File file = fc.showOpenDialog(window);
-            if (file != null) pipeline.loadImageFile(file);
+            if (file != null) {
+                pipeline.loadImageFile(file);
+            }
         });
 
         // --- Freeze / Resume toggle ---

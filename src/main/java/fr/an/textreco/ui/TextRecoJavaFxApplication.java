@@ -11,6 +11,8 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import nu.pattern.OpenCV;
 
+import java.io.File;
+
 public class TextRecoJavaFxApplication extends Application {
 
     static {
@@ -36,13 +38,18 @@ public class TextRecoJavaFxApplication extends Application {
         ProcessingPipeline pipeline = new ProcessingPipeline(
                 edgeDetector, perspProcessor, preProcessor, lineExtractor);
 
+        File file = new File("src/test/term36-consolas-base64-bis.png");
+        if (file.exists()) {
+            pipeline.loadImageFile(file);
+        }
+
         // Views subscribe to pipeline properties in their own constructors.
         TextRecoView view = new TextRecoView(
                 pipeline, appSettings, edgeSettings,
                 perspProcessor, preProcessor, lineExtractor);
 
         stage.getIcons().clear();
-        stage.setScene(new Scene(view.getRoot(), 1100, 620));
+        stage.setScene(new Scene(view.getRoot(), 1400, 700));
         stage.setTitle("TextReco");
         stage.show();
 

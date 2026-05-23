@@ -16,7 +16,9 @@
       "Bash(./mvnw compile *)",
       "Bash(cmd //c \"cd /d C:\\\\\\\\arn\\\\\\\\devPerso\\\\\\\\my-github\\\\\\\\text-reco && mvn compile 2>&1\")",
       "Bash(cmd.exe /c \"cd /d C:\\\\arn\\\\devPerso\\\\my-github\\\\text-reco && mvn compile 2>&1\")",
-      "Bash(export PATH=\"$PATH:/c/Program Files/Maven/bin:/c/ProgramData/chocolatey/bin\")"
+      "Bash(export PATH=\"$PATH:/c/Program Files/Maven/bin:/c/ProgramData/chocolatey/bin\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

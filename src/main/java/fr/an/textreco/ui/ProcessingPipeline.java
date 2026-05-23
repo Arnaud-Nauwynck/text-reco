@@ -10,12 +10,17 @@ import fr.an.textreco.processing.EdgeDetectorProcessor;
 import fr.an.textreco.processing.GridDetectorProcessor;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
 import fr.an.textreco.processing.PreProcessingProcessor;
+import fr.an.textreco.processing.CharTemplateClassifier;
+import fr.an.textreco.processing.TessOcrProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
 import fr.an.textreco.util.FxImageUtils.ImageBuffer;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import javafx.scene.image.WritableImage;
 import lombok.Getter;
 import org.opencv.core.Mat;
@@ -42,6 +47,8 @@ public class ProcessingPipeline {
     @Getter private final ObjectProperty<TextLineExtractionResult> textLinesProperty        = new SimpleObjectProperty<>();
     @Getter private final ObjectProperty<GridDetectionResult>      gridDetectionProperty    = new SimpleObjectProperty<>();
     @Getter private final ObjectProperty<FrameStats>               frameStatsProperty       = new SimpleObjectProperty<>();
+    @Getter private final StringProperty                           tessOcrProperty          = new SimpleStringProperty();
+    @Getter private final BooleanProperty                          ocrEnabledProperty       = new SimpleBooleanProperty(false);
 
     // -------------------------------------------------------------------------
     // processors
@@ -55,7 +62,13 @@ public class ProcessingPipeline {
     private final PerspectiveTransformProcessor perspectiveProcessor;
     private final PreProcessingProcessor        preProcessingProcessor;
     private final TextLineExtractorProcessor    lineExtractor;
-    @Getter private final GridDetectorProcessor gridDetector = new GridDetectorProcessor();
+    @Getter private final GridDetectorProcessor    gridDetector = new GridDetectorProcessor();
+    @Getter private final CharTemplateClassifier   charClassifier = new CharTemplateClassifier();
+    private final TessOcrProcessor tessOcr = new TessOcrProcessor();
+
+    private volatile boolean runOcrOnce = false;
+
+    public void requestOcrOnce() { runOcrOnce = true; }
 
     // ImageBuffers for raw and perspective — conversions that don't belong to a single processor
     private final ImageBuffer rawImageBuf         = new ImageBuffer();
@@ -128,7 +141,9 @@ public class ProcessingPipeline {
             while (running) {
                 long t0 = System.nanoTime();
 
-                if (!cameraCapture.readFrame()) continue;
+                if (!cameraCapture.readFrame()) {
+                    continue;
+                }
                 Mat raw = cameraCapture.getRaw();
                 long t1 = System.nanoTime();
 
@@ -154,13 +169,26 @@ public class ProcessingPipeline {
                 long t7 = System.nanoTime();
 
                 GridDetectionResult gridResult = (preProc == null) ? null
-                        : gridDetector.process(
-                                preProcessingProcessor.morphHorizMat, preProcessingProcessor.closeHorizMat,
-                                preProcessingProcessor.morphVertMat,  preProcessingProcessor.closeVertMat);
+                        : gridDetector.processFromSums(
+                                preProc.hRowSums(), warped.rows(),
+                                preProc.vColSums(), warped.cols());
 
                 TextLineExtractionResult linesResult = (preProc == null)
                         ? null : lineExtractor.process(preProc.hRowSums(), warped, gridResult);
                 long t8 = System.nanoTime();
+
+                boolean doOcr = !warped.empty() && (ocrEnabledProperty.get() || runOcrOnce);
+                if (runOcrOnce) runOcrOnce = false;
+                long tOcrStart = System.nanoTime();
+                String ocrText = null;
+                if (doOcr) {
+                    if (linesResult != null && gridResult != null && !linesResult.lines().isEmpty()) {
+                        ocrText = classifyAllChars(linesResult, gridResult, warped);
+                    } else {
+                        ocrText = tessOcr.recognize(warped);
+                    }
+                }
+                long tessOcrMs = doOcr ? (System.nanoTime() - tOcrStart) / 1_000_000 : -1;
 
                 double fps = prevFrameNs > 0 ? 1e9 / (t0 - prevFrameNs) : 0;
                 prevFrameNs = t0;
@@ -170,12 +198,13 @@ public class ProcessingPipeline {
                         ns2ms(t1 - t0), ns2ms(t2 - t1),
                         ns2ms(t3 - t2), ns2ms(t4 - t3),
                         ns2ms(t5 - t4), ns2ms(t6 - t5),
-                        ns2ms(t8 - t0));
+                        ns2ms(t8 - t0), tessOcrMs);
 
                 final WritableImage fPerspImg = perspectiveImg;
                 final PreProcessingResult fPreProc = preProc;
                 final TextLineExtractionResult fLines = linesResult;
                 final GridDetectionResult fGrid = gridResult;
+                final String fOcrText = ocrText;
                 Platform.runLater(() -> {
                     rawImageProperty        .set(rawImg);
                     edgeImageProperty       .set(edgeImg);
@@ -183,6 +212,7 @@ public class ProcessingPipeline {
                     if (fPreProc   != null) preProcessingProperty   .set(fPreProc);
                     if (fLines     != null) textLinesProperty        .set(fLines);
                     if (fGrid      != null) gridDetectionProperty   .set(fGrid);
+                    if (fOcrText   != null) tessOcrProperty         .set(fOcrText);
                     frameStatsProperty.set(stats);
                 });
 
@@ -196,11 +226,54 @@ public class ProcessingPipeline {
             preProcessingProcessor.release();
             lineExtractor.release();
             gridDetector.release();
+            tessOcr.release();
+            charClassifier.release();
             rawImageBuf.release();
             edgeImageBuf.release();
             perspectiveImageBuf.release();
             inputSource.release();
         }
+    }
+
+    private String classifyAllChars(TextLineExtractionResult lines,
+                                    GridDetectionResult grid,
+                                    Mat warped) {
+        double charW  = grid.bestCharW();
+        double charX0 = grid.bestCharX0();
+        double lineH  = grid.bestLineH();
+        int    fw     = warped.cols();
+        if (charW <= 0 || lineH <= 0) return "";
+
+        // Rebuild column starts from the detected grid (same logic as ColumnsDetectionView)
+        int charWInt = (int) Math.max(1, Math.round(charW));
+        int x0Int    = (int) Math.round(charX0);
+        int fwdCount = fw > 0 && charWInt > 0 ? (fw - x0Int + charWInt - 1) / charWInt : 0;
+        int backCount = charWInt > 0 ? x0Int / charWInt : 0;
+        int[] colStarts = new int[backCount + fwdCount];
+        for (int i = 0; i < backCount; i++)
+            colStarts[i] = (int) Math.round(charX0 - (backCount - i) * charW);
+        for (int i = 0; i < fwdCount; i++)
+            colStarts[backCount + i] = (int) Math.round(charX0 + i * charW);
+
+        StringBuilder sb = new StringBuilder();
+        for (var line : lines.lines()) {
+            int lineTop = line.rowStart();
+            int lineBot = Math.min(line.rowEnd(), warped.rows());
+            int lh = lineBot - lineTop;
+            if (lh <= 0) { sb.append('\n'); continue; }
+            for (int ci = 0; ci < colStarts.length; ci++) {
+                int cx   = Math.max(0, colStarts[ci]);
+                int cEnd = ci + 1 < colStarts.length ? colStarts[ci + 1] : cx + charWInt;
+                int cw   = Math.max(1, Math.min(cEnd - cx, fw - cx));
+                if (cx >= fw) break;
+                Mat crop = warped.submat(lineTop, lineBot, cx, cx + cw);
+                CharTemplateClassifier.Result r = charClassifier.classify(crop);
+                crop.release();
+                sb.append(r.isConfident() ? r.ch() : '?');
+            }
+            sb.append('\n');
+        }
+        return sb.toString().stripTrailing();
     }
 
     private static long ns2ms(long ns) { return ns / 1_000_000; }

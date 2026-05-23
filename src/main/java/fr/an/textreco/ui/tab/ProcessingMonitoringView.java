@@ -25,6 +25,7 @@ public class ProcessingMonitoringView {
     private final Label edgeConvLabel    = statLabel("Edge→RGB: —");
     private final Label perspProcLabel   = statLabel("Perspective warp: —");
     private final Label perspConvLabel   = statLabel("Persp→RGB: —");
+    private final Label tessOcrLabel     = statLabel("TessOCR: —");
 
     // exponential moving average for FPS smoothing (α = 0.1)
     private double smoothFps = 0;
@@ -50,6 +51,7 @@ public class ProcessingMonitoringView {
         addRow(statsGrid, 6, "  edge → RGB",      edgeConvLabel);
         addRow(statsGrid, 7, "  persp warp",      perspProcLabel);
         addRow(statsGrid, 8, "  persp → RGB",     perspConvLabel);
+        addRow(statsGrid, 9, "  tess OCR",        tessOcrLabel);
 
         root.getChildren().addAll(sectionStats, statsGrid);
     }
@@ -71,6 +73,7 @@ public class ProcessingMonitoringView {
         edgeConvLabel   .setText(s.edgeConvertMs() + " ms");
         perspProcLabel  .setText(s.perspProcessMs()+ " ms");
         perspConvLabel  .setText(s.perspConvertMs()+ " ms");
+        tessOcrLabel    .setText(s.tessOcrMs() < 0 ? "—" : s.tessOcrMs() + " ms");
     }
 
     private Label sectionLabel(String text) {

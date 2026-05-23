@@ -24,7 +24,9 @@ public class InputSource {
 
     public BooleanProperty frozenProperty() { return frozen; }
     public boolean isFrozen()               { return frozen.get(); }
-    public void    setFrozen(boolean v)     { frozen.set(v); }
+    public void    setFrozen(boolean v)     {
+        frozen.set(v);
+    }
 
     /**
      * When non-null the loop copies this Mat instead of reading from the camera.
@@ -33,16 +35,20 @@ public class InputSource {
     private Mat loadedMat = null;
 
     public synchronized void setLoadedMat(Mat mat) {
-        if (loadedMat != null) loadedMat.release();
-        loadedMat = mat;
+        if (loadedMat != null) {
+            loadedMat.release();
+        }
+        this.loadedMat = mat;
     }
 
     /** Atomically returns a clone of the loaded Mat and clears it (one-shot consume). */
     public synchronized Mat cloneAndClearLoadedMat() {
-        if (loadedMat == null) return null;
+        if (loadedMat == null) {
+            return null;
+        }
         Mat clone = loadedMat.clone();
         loadedMat.release();
-        loadedMat = null;
+        this.loadedMat = null;
         return clone;
     }
 
@@ -51,6 +57,9 @@ public class InputSource {
     }
 
     public synchronized void release() {
-        if (loadedMat != null) { loadedMat.release(); loadedMat = null; }
+        if (loadedMat != null) {
+            loadedMat.release();
+            this.loadedMat = null;
+        }
     }
 }

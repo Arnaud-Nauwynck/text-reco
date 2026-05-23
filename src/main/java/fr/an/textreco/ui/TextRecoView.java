@@ -13,6 +13,7 @@ import fr.an.textreco.ui.tab.PreProcessingView;
 import fr.an.textreco.ui.tab.ProcessingMonitoringView;
 import fr.an.textreco.ui.tab.ResultTextView;
 import fr.an.textreco.ui.tab.SettingsView;
+import fr.an.textreco.ui.tab.TessOcrView;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -39,7 +40,8 @@ public class TextRecoView {
                 buildTab("Pre-Processing", new PreProcessingView(pipeline).getRoot()),
                 buildTab("Line Areas",     new LineAreasDetectionView(pipeline, lineExtractor).getRoot()),
                 buildTab("Columns",        new ColumnsDetectionView(pipeline).getRoot()),
-                buildTab("Settings",       new SettingsView(appSettings, edgeSettings, preProcessingProcessor, lineExtractor).getRoot()),
+                buildTab("TessOCR",        new TessOcrView(pipeline).getRoot()),
+                buildTab("Settings",       new SettingsView(appSettings, edgeSettings, preProcessingProcessor, lineExtractor, pipeline.getGridDetector()).getRoot()),
                 buildTab("Perfs",          new ProcessingMonitoringView(pipeline).getRoot()),
                 buildTab("Results",        new ResultTextView().getRoot())
         );

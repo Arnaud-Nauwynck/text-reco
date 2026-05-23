@@ -3,6 +3,7 @@ package fr.an.textreco.ui.tab;
 import fr.an.textreco.model.AppSettings;
 import fr.an.textreco.model.BinarizationMethod;
 import fr.an.textreco.model.EdgeDetectorSettings;
+import fr.an.textreco.processing.GridDetectorProcessor;
 import fr.an.textreco.processing.PreProcessingProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
 import javafx.beans.binding.Bindings;
@@ -34,7 +35,8 @@ public class SettingsView {
     @Getter private final Spinner<Integer> captureHeightSpinner = new Spinner<>(240, 2160, 480, 120);
 
     public SettingsView(AppSettings appSettings, EdgeDetectorSettings edgeSettings,
-                        PreProcessingProcessor preProcessor, TextLineExtractorProcessor lineExtractor) {
+                        PreProcessingProcessor preProcessor, TextLineExtractorProcessor lineExtractor,
+                        GridDetectorProcessor gridDetector) {
 
         root.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         root.setStyle("-fx-background-color: #1e1e1e;");
@@ -45,7 +47,7 @@ public class SettingsView {
                 buildProcessingTab(appSettings),
                 buildCannyTab(edgeSettings),
                 buildPreProcessingTab(preProcessor),
-                buildLineDetectionTab(lineExtractor));
+                buildLineDetectionTab(lineExtractor, gridDetector));
     }
 
     // -------------------------------------------------------------------------
@@ -137,10 +139,24 @@ public class SettingsView {
         return subTab("Pre-Processing", padded(box));
     }
 
-    private Tab buildLineDetectionTab(TextLineExtractorProcessor lineExtractor) {
-        Label info = styledLabel("Lines are computed from the grid: y0 + N × lineH (see Line Areas tab).");
-        info.setWrapText(true);
-        return subTab("Line Detection", padded(info));
+    private Tab buildLineDetectionTab(TextLineExtractorProcessor lineExtractor,
+                                      GridDetectorProcessor gridDetector) {
+        Spinner<Integer> minLineHSp = intSpinner(4,  120, gridDetector.getMinLineH());
+        Spinner<Integer> maxLineHSp = intSpinner(4,  120, gridDetector.getMaxLineH());
+        Spinner<Integer> minCharWSp = intSpinner(2,  80,  gridDetector.getMinCharW());
+        Spinner<Integer> maxCharWSp = intSpinner(2,  80,  gridDetector.getMaxCharW());
+
+        bindIntSpinner(minLineHSp, gridDetector.minLineHProperty());
+        bindIntSpinner(maxLineHSp, gridDetector.maxLineHProperty());
+        bindIntSpinner(minCharWSp, gridDetector.minCharWProperty());
+        bindIntSpinner(maxCharWSp, gridDetector.maxCharWProperty());
+
+        VBox box = new VBox(8,
+                hrow(styledLabel("Line H min:"), minLineHSp, styledLabel("px"),
+                     styledLabel("  max:"), maxLineHSp, styledLabel("px")),
+                hrow(styledLabel("Char W min:"), minCharWSp, styledLabel("px"),
+                     styledLabel("  max:"), maxCharWSp, styledLabel("px")));
+        return subTab("Line Detection", padded(box));
     }
 
     // -------------------------------------------------------------------------
@@ -152,6 +168,23 @@ public class SettingsView {
         prop.addListener((obs, o, n) -> slider.setValue(n.intValue()));
         slider.setValue(prop.get());
         label.textProperty().bind(prop.asString());
+    }
+
+    private static Spinner<Integer> intSpinner(int min, int max, int initial) {
+        Spinner<Integer> s = new Spinner<>(min, max, initial, 1);
+        s.setEditable(true);
+        s.setPrefWidth(70);
+        s.setStyle("-fx-background-color: #3a3a3a;");
+        s.getEditor().setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #eeeeee; -fx-font-family: monospace;");
+        return s;
+    }
+
+    private static void bindIntSpinner(Spinner<Integer> s, IntegerProperty prop) {
+        s.getValueFactory().setValue(prop.get());
+        s.valueProperty().addListener((obs, o, n) -> { if (n != null) prop.set(n); });
+        prop.addListener((obs, o, n) -> {
+            if (!n.equals(s.getValue())) s.getValueFactory().setValue(n.intValue());
+        });
     }
 
     // -------------------------------------------------------------------------
