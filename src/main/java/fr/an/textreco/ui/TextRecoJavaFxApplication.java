@@ -11,51 +11,48 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import nu.pattern.OpenCV;
 
-
 public class TextRecoJavaFxApplication extends Application {
 
     static {
         try {
             OpenCV.loadLocally();
-        } catch(Error ex) {
+        } catch (Error ex) {
             System.out.println("Failed to load native OpenCV lib ...");
             ex.printStackTrace();
             throw ex;
         }
-        // System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
     }
 
     @Override
     public void start(Stage stage) {
-        AppSettings appSettings = new AppSettings();
+        AppSettings appSettings       = new AppSettings();
         EdgeDetectorSettings edgeSettings = new EdgeDetectorSettings();
-        EdgeDetectorProcessor processor = new EdgeDetectorProcessor(edgeSettings);
-        PerspectiveTransformProcessor perspectiveProcessor = new PerspectiveTransformProcessor();
-        PreProcessingProcessor preProcessingProcessor = new PreProcessingProcessor(appSettings);
-        TextLineExtractorProcessor lineExtractor = new TextLineExtractorProcessor(appSettings);
 
-        CameraService cameraService = new CameraService(
-                processor, perspectiveProcessor, preProcessingProcessor, lineExtractor);
+        EdgeDetectorProcessor         edgeDetector    = new EdgeDetectorProcessor(edgeSettings);
+        PerspectiveTransformProcessor perspProcessor  = new PerspectiveTransformProcessor();
+        PreProcessingProcessor        preProcessor    = new PreProcessingProcessor(appSettings);
+        TextLineExtractorProcessor    lineExtractor   = new TextLineExtractorProcessor();
+
+        ProcessingPipeline pipeline = new ProcessingPipeline(
+                edgeDetector, perspProcessor, preProcessor, lineExtractor);
 
         TextRecoView view = new TextRecoView(
-                cameraService, appSettings, edgeSettings,
-                processor, perspectiveProcessor, preProcessingProcessor, lineExtractor);
+                pipeline, appSettings, edgeSettings,
+                perspProcessor, preProcessor, lineExtractor);
 
-        cameraService.getRawImageProperty()        .addListener((obs, o, n) -> view.setRawImage(n));
-        cameraService.getProcessedImageProperty()  .addListener((obs, o, n) -> view.setProcessedImage(n));
-        cameraService.getPerspectiveImageProperty().addListener((obs, o, n) -> view.setPerspectiveImage(n));
-        cameraService.getPreProcessingProperty()   .addListener((obs, o, n) -> view.onPreProcessing(n));
-        cameraService.getTextLinesProperty()       .addListener((obs, o, n) -> view.onTextLines(n));
-        cameraService.getFrameStatsProperty()      .addListener((obs, o, n) -> view.onStats(n));
+        pipeline.getRawImageProperty()        .addListener((obs, o, n) -> view.setRawImage(n));
+        pipeline.getPerspectiveImageProperty().addListener((obs, o, n) -> view.setPerspectiveImage(n));
+        pipeline.getPreProcessingProperty()   .addListener((obs, o, n) -> view.onPreProcessing(n));
+        pipeline.getTextLinesProperty()       .addListener((obs, o, n) -> view.onTextLines(n));
+        pipeline.getFrameStatsProperty()      .addListener((obs, o, n) -> view.onStats(n));
 
         stage.getIcons().clear();
         stage.setScene(new Scene(view.getRoot(), 1100, 620));
         stage.setTitle("TextReco");
-
         stage.show();
 
-        cameraService.start();
+        pipeline.start();
 
-        stage.setOnCloseRequest(e -> cameraService.stop());
+        stage.setOnCloseRequest(e -> pipeline.stop());
     }
 }

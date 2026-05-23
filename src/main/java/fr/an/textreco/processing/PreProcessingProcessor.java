@@ -42,9 +42,12 @@ public class PreProcessingProcessor {
     private int lastTophatRadius = -1;
 
     // scratch Mats — projection + morph
-    private final Mat rowSumMat  = new Mat();
-    private final Mat colSumMat  = new Mat();
-    private final Mat morphOut   = new Mat();
+    private final Mat rowSumMat   = new Mat();
+    private final Mat colSumMat   = new Mat();
+    // persistent morph results — readable by TextLineExtractorProcessor after process() returns
+    public final Mat morphHorizMat  = new Mat();
+    public final Mat morphVertMat   = new Mat();
+    private final Mat morphOut    = new Mat();   // scratch for diag openings
 
     // structuring elements — rebuilt when seHalfLen changes
     private int lastSeHalfLen = -1;
@@ -101,24 +104,29 @@ public class PreProcessingProcessor {
         Imgproc.cvtColor(binary, bgrTmp, Imgproc.COLOR_GRAY2BGR);
         var binaryImg = binaryBuf.update(bgrTmp);
 
-        // --- horizontal projection: reduce along columns → (h,1) CV_32F ---
-        Core.reduce(binary, rowSumMat, 1, Core.REDUCE_SUM, CvType.CV_32F);
-        if (hRowSums.length != h) hRowSums = new float[h];
-        rowSumMat.get(0, 0, hRowSums);
-
-        // --- vertical projection: reduce along rows → (1,w) CV_32F ---
-        Core.reduce(binary, colSumMat, 0, Core.REDUCE_SUM, CvType.CV_32F);
-        if (vColSums.length != w) vColSums = new float[w];
-        colSumMat.get(0, 0, vColSums);
-
         // --- rebuild structuring elements if size changed ---
         rebuildKernelsIfNeeded();
 
-        // --- morphological openings ---
-        var morphH   = morphOpen(binary, seHoriz,   morphHBuf);
-        var morphV   = morphOpen(binary, seVert,     morphVBuf);
-        var morphFwd = morphOpen(binary, seDiagFwd,  morphFwdBuf);
-        var morphBwd = morphOpen(binary, seDiagBwd,  morphBwdBuf);
+        // --- morphological openings (horiz/vert into persistent Mats for line extractor) ---
+        Imgproc.morphologyEx(binary, morphHorizMat, Imgproc.MORPH_OPEN, seHoriz);
+        Imgproc.morphologyEx(binary, morphVertMat,  Imgproc.MORPH_OPEN, seVert);
+        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_OPEN, seDiagFwd);
+        var morphFwd = matToImage(morphOut, morphFwdBuf);
+        Imgproc.morphologyEx(binary, morphOut,       Imgproc.MORPH_OPEN, seDiagBwd);
+        var morphBwd = matToImage(morphOut, morphBwdBuf);
+
+        var morphH = matToImage(morphHorizMat, morphHBuf);
+        var morphV = matToImage(morphVertMat,  morphVBuf);
+
+        // --- horizontal projection on morph-horiz (rows with horizontal strokes) ---
+        Core.reduce(morphHorizMat, rowSumMat, 1, Core.REDUCE_SUM, CvType.CV_32F);
+        if (hRowSums.length != h) hRowSums = new float[h];
+        rowSumMat.get(0, 0, hRowSums);
+
+        // --- vertical projection on morph-vert (cols with vertical strokes) ---
+        Core.reduce(morphVertMat, colSumMat, 0, Core.REDUCE_SUM, CvType.CV_32F);
+        if (vColSums.length != w) vColSums = new float[w];
+        colSumMat.get(0, 0, vColSums);
 
         return new PreProcessingResult(w, h, binaryImg,
                 hRowSums.clone(), vColSums.clone(),
@@ -159,9 +167,8 @@ public class PreProcessingProcessor {
         Imgproc.threshold(gray, binary, 0, 255, flags);
     }
 
-    private javafx.scene.image.WritableImage morphOpen(Mat src, Mat se, FxImageUtils.ImageBuffer buf) {
-        Imgproc.morphologyEx(src, morphOut, Imgproc.MORPH_OPEN, se);
-        Imgproc.cvtColor(morphOut, bgrTmp, Imgproc.COLOR_GRAY2BGR);
+    private javafx.scene.image.WritableImage matToImage(Mat gray1ch, FxImageUtils.ImageBuffer buf) {
+        Imgproc.cvtColor(gray1ch, bgrTmp, Imgproc.COLOR_GRAY2BGR);
         return buf.update(bgrTmp);
     }
 
@@ -201,6 +208,7 @@ public class PreProcessingProcessor {
     public void release() {
         gray.release(); tophat.release(); tophatSE.release(); binary.release();
         rowSumMat.release(); colSumMat.release(); morphOut.release();
+        morphHorizMat.release(); morphVertMat.release();
         seHoriz.release(); seVert.release(); seDiagFwd.release(); seDiagBwd.release();
         binaryBuf.release(); morphHBuf.release(); morphVBuf.release();
         morphFwdBuf.release(); morphBwdBuf.release(); bgrTmp.release();

@@ -1,11 +1,8 @@
 package fr.an.textreco.ui.tab;
 
-import fr.an.textreco.model.EdgeDetectorSettings;
 import fr.an.textreco.model.FrameStats;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
-import javafx.scene.control.Separator;
-import javafx.scene.control.Slider;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
@@ -31,13 +28,9 @@ public class ProcessingTab {
     // exponential moving average for FPS smoothing (α = 0.1)
     private double smoothFps = 0;
 
-    public ProcessingTab(EdgeDetectorSettings settings) {
+    public ProcessingTab() {
         root.setPadding(new Insets(16));
         root.setStyle("-fx-background-color: #1e1e1e;");
-
-        // --- Canny sliders ---
-        Label sectionCanny = sectionLabel("Canny Edge Detection");
-        GridPane sliderGrid = buildSliderGrid(settings);
 
         // --- Timing table ---
         Label sectionStats = sectionLabel("Frame Stats");
@@ -56,35 +49,7 @@ public class ProcessingTab {
         addRow(statsGrid, 7, "  persp warp",      perspProcLabel);
         addRow(statsGrid, 8, "  persp → RGB",     perspConvLabel);
 
-        root.getChildren().addAll(
-                sectionCanny, sliderGrid,
-                new Separator(),
-                sectionStats, statsGrid
-        );
-    }
-
-    private GridPane buildSliderGrid(EdgeDetectorSettings settings) {
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(10);
-
-        Label val1 = statLabel(String.valueOf((int) settings.getCannyThreshold1()));
-        Slider s1 = slider(0, 300, settings.getCannyThreshold1(), 50);
-        s1.valueProperty().addListener((obs, o, n) -> {
-            settings.setCannyThreshold1(n.doubleValue());
-            val1.setText(String.valueOf(n.intValue()));
-        });
-
-        Label val2 = statLabel(String.valueOf((int) settings.getCannyThreshold2()));
-        Slider s2 = slider(0, 500, settings.getCannyThreshold2(), 50);
-        s2.valueProperty().addListener((obs, o, n) -> {
-            settings.setCannyThreshold2(n.doubleValue());
-            val2.setText(String.valueOf(n.intValue()));
-        });
-
-        grid.add(rowLabel("Threshold 1 (low):"),  0, 0); grid.add(s1, 1, 0); grid.add(val1, 2, 0);
-        grid.add(rowLabel("Threshold 2 (high):"), 0, 1); grid.add(s2, 1, 1); grid.add(val2, 2, 1);
-        return grid;
+        root.getChildren().addAll(sectionStats, statsGrid);
     }
 
     private void addRow(GridPane grid, int row, String name, Label valueLabel) {
@@ -125,11 +90,4 @@ public class ProcessingTab {
         return l;
     }
 
-    private static Slider slider(double min, double max, double value, double tickUnit) {
-        Slider s = new Slider(min, max, value);
-        s.setShowTickLabels(true);
-        s.setShowTickMarks(true);
-        s.setMajorTickUnit(tickUnit);
-        return s;
-    }
 }

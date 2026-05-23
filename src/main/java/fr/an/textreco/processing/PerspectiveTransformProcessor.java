@@ -9,6 +9,10 @@ import org.opencv.imgproc.Imgproc;
 
 public class PerspectiveTransformProcessor implements FrameProcessor {
 
+    // owned scratch state
+    private final FrameData        frame = new FrameData();
+    private final ProcessingContext ctx   = new ProcessingContext();
+
     private volatile int outputWidth  = 640;
     private volatile int outputHeight = 480;
 
@@ -71,9 +75,20 @@ public class PerspectiveTransformProcessor implements FrameProcessor {
         Imgproc.warpPerspective(frame.raw, frame.processed, transform, new Size(ow, oh));
     }
 
+    /** Runs perspective warp on rawBgr. Result is in {@link #getWarped()}. */
+    public void process(Mat rawBgr) {
+        rawBgr.copyTo(frame.raw);
+        process(frame, ctx);
+    }
+
+    /** Returns the warped output Mat (valid until the next process() call). */
+    public Mat getWarped() { return frame.processed; }
+
     public void release() {
         transform.release();
         srcMat.release();
         dstMat.release();
+        frame.release();
+        ctx.release();
     }
 }

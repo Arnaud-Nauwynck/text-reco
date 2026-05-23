@@ -1,7 +1,8 @@
 package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.CameraDevice;
-import fr.an.textreco.ui.CameraService;
+import fr.an.textreco.processing.CameraCapture;
+import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -25,7 +26,7 @@ import lombok.Getter;
 import java.io.File;
 import java.util.List;
 
-public class CameraTab {
+public class ImageInputTab {
 
     @Getter
     private final VBox root = new VBox(6);
@@ -33,11 +34,11 @@ public class CameraTab {
     private final ImageView rawImageView       = new ImageView();
     private final ImageView processedImageView = new ImageView();
 
-    public CameraTab(CameraService cameraService) {
+    public ImageInputTab(ProcessingPipeline pipeline) {
         configureImageView(rawImageView);
         configureImageView(processedImageView);
 
-        HBox toolbar = buildToolbar(cameraService);
+        HBox toolbar = buildToolbar(pipeline);
 
         HBox images = new HBox(8,
                 buildPanel("Camera",    rawImageView),
@@ -49,7 +50,7 @@ public class CameraTab {
         root.setStyle("-fx-background-color: #1e1e1e;");
     }
 
-    private HBox buildToolbar(CameraService cameraService) {
+    private HBox buildToolbar(ProcessingPipeline pipeline) {
         // --- Camera selector ---
         ComboBox<CameraDevice> cameraCombo = new ComboBox<>();
         cameraCombo.setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd; -fx-border-color: #555; -fx-border-width: 1;");
@@ -75,14 +76,14 @@ public class CameraTab {
         // Probe all indices 0..3 via CAP_DSHOW in a background thread (can block per index).
         // CAP_DSHOW allows concurrent opens, so camera 0 being held by the service is fine.
         Thread probeThread = new Thread(() -> {
-            List<CameraDevice> found = CameraService.probeAvailableCameras(3, 2000);
+            List<CameraDevice> found = CameraCapture.probeAvailableCameras(3, 2000);
             Platform.runLater(() -> {
                 if (found.isEmpty()) return;
                 cameraCombo.setItems(FXCollections.observableArrayList(found));
                 // Prefer highest index (USB enumerates after built-in)
                 CameraDevice preferred = found.get(found.size() - 1);
                 cameraCombo.setValue(preferred);
-                cameraService.selectCamera(preferred.index());
+                pipeline.selectCamera(preferred.index());
             });
         });
         probeThread.setDaemon(true);
@@ -90,7 +91,7 @@ public class CameraTab {
 
         cameraCombo.setOnAction(e -> {
             CameraDevice selected = cameraCombo.getValue();
-            if (selected != null) cameraService.selectCamera(selected.index());
+            if (selected != null) pipeline.selectCamera(selected.index());
         });
 
         // --- Open image file ---
@@ -103,18 +104,18 @@ public class CameraTab {
                     new FileChooser.ExtensionFilter("All Files", "*.*"));
             Window window = root.getScene() != null ? root.getScene().getWindow() : null;
             File file = fc.showOpenDialog(window);
-            if (file != null) cameraService.loadImageFile(file);
+            if (file != null) pipeline.loadImageFile(file);
         });
 
         // --- Freeze / Resume toggle ---
         ToggleButton freezeBtn = new ToggleButton("Freeze");
         styleToggleButton(freezeBtn);
         // keep button state in sync with the service (e.g. after loadImageFile auto-freezes)
-        cameraService.getFrozenProperty().addListener((obs, o, frozen) -> {
+        pipeline.getFrozenProperty().addListener((obs, o, frozen) -> {
             freezeBtn.setSelected(frozen);
             freezeBtn.setText(frozen ? "Resume" : "Freeze");
         });
-        freezeBtn.setOnAction(e -> cameraService.toggleFreeze());
+        freezeBtn.setOnAction(e -> pipeline.toggleFreeze());
 
         // --- Save raw image ---
         Button saveBtn = toolButton("Save Raw…");
@@ -128,7 +129,7 @@ public class CameraTab {
             fc.setInitialFileName("frame.png");
             Window window = root.getScene() != null ? root.getScene().getWindow() : null;
             File file = fc.showSaveDialog(window);
-            if (file != null) cameraService.saveRawImage(file);
+            if (file != null) pipeline.saveRawImage(file);
         });
 
         HBox toolbar = new HBox(8, cameraCombo, openBtn, freezeBtn, saveBtn);
