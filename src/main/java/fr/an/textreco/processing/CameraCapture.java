@@ -70,7 +70,7 @@ public class CameraCapture {
             raw.copyTo(snapshot);
             return true;
         }
-        if (inputSource.frozen) {
+        if (inputSource.isFrozen()) {
             if (raw.empty()) { Thread.sleep(20); return false; }
             return true;
         }

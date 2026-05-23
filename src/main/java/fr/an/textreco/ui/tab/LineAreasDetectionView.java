@@ -4,6 +4,7 @@ import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
+import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -23,7 +24,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-public class LineAreasTab {
+public class LineAreasDetectionView {
 
     private static final double PREVIEW_W = 480;
     private static final double PREVIEW_H = 360;
@@ -43,8 +44,11 @@ public class LineAreasTab {
 
     private final TextLineExtractorProcessor extractor;
 
-    public LineAreasTab(TextLineExtractorProcessor extractor) {
+    public LineAreasDetectionView(ProcessingPipeline pipeline, TextLineExtractorProcessor extractor) {
         this.extractor = extractor;
+        pipeline.getPerspectiveImageProperty().addListener((obs, o, img) -> { if (img != null) setWarpedImage(img); });
+        pipeline.getPreProcessingProperty()   .addListener((obs, o, r)   -> onPreProcessing(r));
+        pipeline.getTextLinesProperty()       .addListener((obs, o, r)   -> { if (r != null) onResult(r); });
 
         warpedView.setPreserveRatio(true);
         warpedView.setFitWidth(PREVIEW_W);
@@ -89,7 +93,7 @@ public class LineAreasTab {
     // public update entry
     // -------------------------------------------------------------------------
 
-    public void onResult(TextLineExtractionResult result) {
+    private void onResult(TextLineExtractionResult result) {
         redrawOverlay(result);
         redrawHistogram(result);
         rebuildLineList(result);
@@ -97,11 +101,11 @@ public class LineAreasTab {
                 + "  (" + result.frameWidth() + "×" + result.frameHeight() + ")");
     }
 
-    public void setWarpedImage(Image image) {
+    private void setWarpedImage(Image image) {
         warpedView.setImage(image);
     }
 
-    public void onPreProcessing(PreProcessingResult r) {
+    private void onPreProcessing(PreProcessingResult r) {
         if (r == null) return;
         drawVHistogram(r.vColSums(), r.frameWidth(), r.frameHeight());
     }

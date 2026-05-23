@@ -2,24 +2,20 @@ package fr.an.textreco.ui;
 
 import fr.an.textreco.model.AppSettings;
 import fr.an.textreco.model.EdgeDetectorSettings;
-import fr.an.textreco.model.FrameStats;
-import fr.an.textreco.model.PreProcessingResult;
-import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
 import fr.an.textreco.processing.PreProcessingProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
-import fr.an.textreco.ui.tab.ImageInputTab;
-import fr.an.textreco.ui.tab.PerspectiveTab;
-import fr.an.textreco.ui.tab.PreProcessingTab;
-import fr.an.textreco.ui.tab.ProcessingTab;
-import fr.an.textreco.ui.tab.ResultsTab;
-import fr.an.textreco.ui.tab.SettingsTab;
-import fr.an.textreco.ui.tab.ColumnsTab;
-import fr.an.textreco.ui.tab.LineAreasTab;
+import fr.an.textreco.ui.tab.ImageInputView;
+import fr.an.textreco.ui.tab.PerspectiveTransformView;
+import fr.an.textreco.ui.tab.PreProcessingView;
+import fr.an.textreco.ui.tab.ProcessingMonitoringView;
+import fr.an.textreco.ui.tab.ResultTextView;
+import fr.an.textreco.ui.tab.SettingsView;
+import fr.an.textreco.ui.tab.ColumnsDetectionView;
+import fr.an.textreco.ui.tab.LineAreasDetectionView;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
-import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -30,39 +26,22 @@ public class TextRecoView {
     @Getter
     private final BorderPane root = new BorderPane();
 
-    private final ImageInputTab cameraTab;
-    private final ProcessingTab processingTab;
-    private final PerspectiveTab perspectiveTab;
-    private final PreProcessingTab preProcessingTab;
-    private final LineAreasTab textLinesTab;
-    private final ColumnsTab   columnsTab;
-    private final SettingsTab settingsTab;
-    private final ResultsTab resultsTab;
-
     public TextRecoView(ProcessingPipeline pipeline,
                         AppSettings appSettings,
                         EdgeDetectorSettings edgeSettings,
                         PerspectiveTransformProcessor perspectiveProcessor,
                         PreProcessingProcessor preProcessingProcessor,
                         TextLineExtractorProcessor lineExtractor) {
-        cameraTab        = new ImageInputTab(pipeline);
-        processingTab    = new ProcessingTab();
-        perspectiveTab   = new PerspectiveTab(perspectiveProcessor);
-        preProcessingTab = new PreProcessingTab();
-        textLinesTab     = new LineAreasTab(lineExtractor);
-        columnsTab       = new ColumnsTab();
-        settingsTab      = new SettingsTab(appSettings, edgeSettings, preProcessingProcessor, lineExtractor);
-        resultsTab       = new ResultsTab();
 
         TabPane tabPane = new TabPane(
-                buildTab("Input",          cameraTab.getRoot()),
-                buildTab("Perspective",    perspectiveTab.getRoot()),
-                buildTab("Pre-Processing", preProcessingTab.getRoot()),
-                buildTab("Line Areas",     textLinesTab.getRoot()),
-                buildTab("Columns",         columnsTab.getRoot()),
-                buildTab("Settings",       settingsTab.getRoot()),
-                buildTab("Perfs",          processingTab.getRoot()),
-                buildTab("Results",        resultsTab.getRoot())
+                buildTab("Input",          new ImageInputView(pipeline).getRoot()),
+                buildTab("Perspective",    new PerspectiveTransformView(pipeline, perspectiveProcessor).getRoot()),
+                buildTab("Pre-Processing", new PreProcessingView(pipeline).getRoot()),
+                buildTab("Line Areas",     new LineAreasDetectionView(pipeline, lineExtractor).getRoot()),
+                buildTab("Columns",        new ColumnsDetectionView(pipeline).getRoot()),
+                buildTab("Settings",       new SettingsView(appSettings, edgeSettings, preProcessingProcessor, lineExtractor).getRoot()),
+                buildTab("Perfs",          new ProcessingMonitoringView(pipeline).getRoot()),
+                buildTab("Results",        new ResultTextView().getRoot())
         );
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setStyle("-fx-background-color: #1e1e1e;");
@@ -79,30 +58,5 @@ public class TextRecoView {
         tab.setGraphic(label);
         tab.setStyle("-fx-background-color: #2d2d2d;");
         return tab;
-    }
-
-    public void setRawImage(Image image) {
-        cameraTab.setRawImage(image);
-        perspectiveTab.setRawImage(image);
-    }
-
-    public void setPerspectiveImage(Image image) {
-        perspectiveTab.setWarpedImage(image);
-        textLinesTab.setWarpedImage(image);
-    }
-
-    public void onPreProcessing(PreProcessingResult result) {
-        preProcessingTab.onResult(result);
-        textLinesTab.onPreProcessing(result);
-        if (result != null) cameraTab.setProcessedImage(result.binaryImage());
-    }
-
-    public void onTextLines(TextLineExtractionResult result) {
-        textLinesTab.onResult(result);
-        columnsTab.onResult(result);
-    }
-
-    public void onStats(FrameStats stats) {
-        processingTab.onStats(stats);
     }
 }

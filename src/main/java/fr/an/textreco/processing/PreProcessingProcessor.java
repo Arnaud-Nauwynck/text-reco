@@ -4,6 +4,10 @@ import fr.an.textreco.model.AppSettings;
 import fr.an.textreco.model.BinarizationMethod;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.util.FxImageUtils;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
@@ -17,19 +21,14 @@ import org.opencv.imgproc.Imgproc;
  */
 public class PreProcessingProcessor {
 
-    // binarisation
-    private volatile BinarizationMethod binarizationMethod = BinarizationMethod.TOPHAT;
-    /** top-hat SE radius (square) */
-    private volatile int  tophatRadius    = 12;
-    /** fixed threshold applied after top-hat */
-    private volatile int  tophatThreshold = 20;
-    /** adaptiveThreshold block size (must be odd) */
-    private volatile int  adaptiveBlock   = 31;
-    /** adaptiveThreshold C constant */
-    private volatile int  adaptiveC       = 10;
-
-    /** half-length of the morphological-opening line SE in pixels */
-    private volatile int seHalfLen = 7;
+    // binarisation — JavaFX properties, readable from background thread via .get()
+    private final ObjectProperty<BinarizationMethod> binarizationMethod =
+            new SimpleObjectProperty<>(BinarizationMethod.TOPHAT);
+    private final IntegerProperty tophatRadius    = new SimpleIntegerProperty(12);
+    private final IntegerProperty tophatThreshold = new SimpleIntegerProperty(20);
+    private final IntegerProperty adaptiveBlock   = new SimpleIntegerProperty(31);
+    private final IntegerProperty adaptiveC       = new SimpleIntegerProperty(10);
+    private final IntegerProperty seHalfLen       = new SimpleIntegerProperty(7);
 
     private final AppSettings appSettings;
 
@@ -74,18 +73,29 @@ public class PreProcessingProcessor {
         this.appSettings = appSettings;
     }
 
-    public void setSeHalfLen(int halfLen)                  { seHalfLen = halfLen; }
-    public int  getSeHalfLen()                             { return seHalfLen; }
-    public void setBinarizationMethod(BinarizationMethod m){ binarizationMethod = m; }
-    public BinarizationMethod getBinarizationMethod()      { return binarizationMethod; }
-    public void setTophatRadius(int r)                     { tophatRadius = r; }
-    public int  getTophatRadius()                          { return tophatRadius; }
-    public void setTophatThreshold(int t)                  { tophatThreshold = t; }
-    public int  getTophatThreshold()                       { return tophatThreshold; }
-    public void setAdaptiveBlock(int b)                    { adaptiveBlock = b; }
-    public int  getAdaptiveBlock()                         { return adaptiveBlock; }
-    public void setAdaptiveC(int c)                        { adaptiveC = c; }
-    public int  getAdaptiveC()                             { return adaptiveC; }
+    public ObjectProperty<BinarizationMethod> binarizationMethodProperty() { return binarizationMethod; }
+    public BinarizationMethod getBinarizationMethod()      { return binarizationMethod.get(); }
+    public void setBinarizationMethod(BinarizationMethod m){ binarizationMethod.set(m); }
+
+    public IntegerProperty tophatRadiusProperty()          { return tophatRadius; }
+    public int  getTophatRadius()                          { return tophatRadius.get(); }
+    public void setTophatRadius(int r)                     { tophatRadius.set(r); }
+
+    public IntegerProperty tophatThresholdProperty()       { return tophatThreshold; }
+    public int  getTophatThreshold()                       { return tophatThreshold.get(); }
+    public void setTophatThreshold(int t)                  { tophatThreshold.set(t); }
+
+    public IntegerProperty adaptiveBlockProperty()         { return adaptiveBlock; }
+    public int  getAdaptiveBlock()                         { return adaptiveBlock.get(); }
+    public void setAdaptiveBlock(int b)                    { adaptiveBlock.set(b); }
+
+    public IntegerProperty adaptiveCProperty()             { return adaptiveC; }
+    public int  getAdaptiveC()                             { return adaptiveC.get(); }
+    public void setAdaptiveC(int c)                        { adaptiveC.set(c); }
+
+    public IntegerProperty seHalfLenProperty()             { return seHalfLen; }
+    public int  getSeHalfLen()                             { return seHalfLen.get(); }
+    public void setSeHalfLen(int halfLen)                  { seHalfLen.set(halfLen); }
 
     public PreProcessingResult process(Mat warpedBgr) {
         int w = warpedBgr.cols();
@@ -94,7 +104,7 @@ public class PreProcessingProcessor {
 
         Imgproc.cvtColor(warpedBgr, gray, Imgproc.COLOR_BGR2GRAY);
 
-        switch (binarizationMethod) {
+        switch (binarizationMethod.get()) {
             case TOPHAT   -> binarizeTophat();
             case ADAPTIVE -> binarizeAdaptive();
             case OTSU     -> binarizeOtsu();
@@ -138,27 +148,24 @@ public class PreProcessingProcessor {
     // -------------------------------------------------------------------------
 
     private void binarizeTophat() {
-        int r = tophatRadius;
+        int r = tophatRadius.get();
         if (r != lastTophatRadius) {
             lastTophatRadius = r;
             tophatSE.release();
-            // square SE for top-hat (catches characters of any orientation)
             tophatSE.create(2 * r + 1, 2 * r + 1, CvType.CV_8U);
             tophatSE.setTo(new Scalar(1));
         }
-        // white-hat: bright text on dark bg; black-hat: dark text on bright bg
         int op = appSettings.isDarkTheme() ? Imgproc.MORPH_TOPHAT : Imgproc.MORPH_BLACKHAT;
         Imgproc.morphologyEx(gray, tophat, op, tophatSE);
-        // fixed threshold — top-hat output is already normalised relative to local contrast
-        Imgproc.threshold(tophat, binary, tophatThreshold, 255, Imgproc.THRESH_BINARY);
+        Imgproc.threshold(tophat, binary, tophatThreshold.get(), 255, Imgproc.THRESH_BINARY);
     }
 
     private void binarizeAdaptive() {
-        int block = adaptiveBlock | 1;  // ensure odd
+        int block = adaptiveBlock.get() | 1;
         Imgproc.adaptiveThreshold(gray, binary, 255,
                 Imgproc.ADAPTIVE_THRESH_MEAN_C,
                 appSettings.isDarkTheme() ? Imgproc.THRESH_BINARY_INV : Imgproc.THRESH_BINARY,
-                block, adaptiveC);
+                block, adaptiveC.get());
     }
 
     private void binarizeOtsu() {
@@ -173,7 +180,7 @@ public class PreProcessingProcessor {
     }
 
     private void rebuildKernelsIfNeeded() {
-        int hl = seHalfLen;
+        int hl = seHalfLen.get();
         if (hl == lastSeHalfLen) return;
         lastSeHalfLen = hl;
         int len = hl * 2 + 1;

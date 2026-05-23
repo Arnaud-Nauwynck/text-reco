@@ -3,8 +3,10 @@ package fr.an.textreco.processing;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.util.FxImageUtils;
-import lombok.Getter;
-import lombok.Setter;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -29,16 +31,40 @@ import java.util.List;
 public class TextLineExtractorProcessor {
 
     // --- smoothing ---
-    @Getter @Setter private volatile int    smoothRadius    = 3;    // box-filter half-width in rows
+    private final IntegerProperty smoothRadius    = new SimpleIntegerProperty(3);
 
     // --- valley detection ---
-    @Getter @Setter private volatile double valleyThreshold = 0.15; // valley must be below this fraction of global max
-    @Getter @Setter private volatile int    valleyHalfWin   = 4;    // local-minimum search half-window (rows)
-    @Getter @Setter private volatile double minPeakRatio    = 0.05; // span peak must exceed this fraction of global max
+    private final DoubleProperty  valleyThreshold = new SimpleDoubleProperty(0.15);
+    private final IntegerProperty valleyHalfWin   = new SimpleIntegerProperty(4);
+    private final DoubleProperty  minPeakRatio    = new SimpleDoubleProperty(0.05);
 
     // --- span filtering ---
-    @Getter @Setter private volatile int    minLineHeight   = 6;
-    @Getter @Setter private volatile int    maxLineHeight   = 120;
+    private final IntegerProperty minLineHeight   = new SimpleIntegerProperty(6);
+    private final IntegerProperty maxLineHeight   = new SimpleIntegerProperty(120);
+
+    public IntegerProperty smoothRadiusProperty()    { return smoothRadius; }
+    public int    getSmoothRadius()                  { return smoothRadius.get(); }
+    public void   setSmoothRadius(int v)             { smoothRadius.set(v); }
+
+    public DoubleProperty  valleyThresholdProperty() { return valleyThreshold; }
+    public double getValleyThreshold()               { return valleyThreshold.get(); }
+    public void   setValleyThreshold(double v)       { valleyThreshold.set(v); }
+
+    public IntegerProperty valleyHalfWinProperty()   { return valleyHalfWin; }
+    public int    getValleyHalfWin()                 { return valleyHalfWin.get(); }
+    public void   setValleyHalfWin(int v)            { valleyHalfWin.set(v); }
+
+    public DoubleProperty  minPeakRatioProperty()    { return minPeakRatio; }
+    public double getMinPeakRatio()                  { return minPeakRatio.get(); }
+    public void   setMinPeakRatio(double v)          { minPeakRatio.set(v); }
+
+    public IntegerProperty minLineHeightProperty()   { return minLineHeight; }
+    public int    getMinLineHeight()                 { return minLineHeight.get(); }
+    public void   setMinLineHeight(int v)            { minLineHeight.set(v); }
+
+    public IntegerProperty maxLineHeightProperty()   { return maxLineHeight; }
+    public int    getMaxLineHeight()                 { return maxLineHeight.get(); }
+    public void   setMaxLineHeight(int v)            { maxLineHeight.set(v); }
 
     // pre-allocated scratch Mats
     private final Mat rowSumMat = new Mat();
@@ -70,24 +96,22 @@ public class TextLineExtractorProcessor {
         rowSumMat.get(0, 0, rowSums);
 
         // --- smooth ---
-        boxSmooth(rowSums, smoothed, h, smoothRadius);
+        boxSmooth(rowSums, smoothed, h, smoothRadius.get());
 
         // --- global max of smoothed signal ---
         float globalMax = 1f;
         for (int r = 0; r < h; r++) if (smoothed[r] > globalMax) globalMax = smoothed[r];
 
         // --- find valley rows ---
-        // A row is a valley if:
-        //   smoothed[r] < valleyThreshold * globalMax  (deep enough)
-        //   AND smoothed[r] is a local minimum within ±valleyHalfWin
-        double vThresh  = valleyThreshold * globalMax;
-        int    vHalfWin = valleyHalfWin;
+        double vThresh  = valleyThreshold.get() * globalMax;
+        int    vHalfWin = valleyHalfWin.get();
+        double peakMin  = minPeakRatio.get() * globalMax;
+
+        // Find local-minimum rows (candidate valley centres)
         List<Integer> valleyRows = new ArrayList<>();
-        // always treat row 0 and row h as implicit boundaries
         valleyRows.add(0);
         for (int r = 1; r < h - 1; r++) {
             if (smoothed[r] >= vThresh) continue;
-            // local minimum check
             boolean isMin = true;
             int lo = Math.max(0, r - vHalfWin);
             int hi = Math.min(h - 1, r + vHalfWin);
@@ -98,26 +122,31 @@ public class TextLineExtractorProcessor {
         }
         valleyRows.add(h);
 
-        // merge consecutive valleys that are adjacent (no peak between them)
+        // Merge consecutive candidate valleys that have no peak between them,
+        // then replace each valley with the midpoint of its low region.
         List<Integer> mergedValleys = new ArrayList<>();
-        mergedValleys.add(valleyRows.get(0));
+        mergedValleys.add(0);
         for (int i = 1; i < valleyRows.size() - 1; i++) {
             int prev = mergedValleys.get(mergedValleys.size() - 1);
             int cur  = valleyRows.get(i);
-            // check if any peak exists between prev and cur
             boolean hasPeak = false;
-            double peakMin = minPeakRatio * globalMax;
             for (int r = prev; r <= cur; r++) {
                 if (smoothed[r] > peakMin) { hasPeak = true; break; }
             }
-            if (hasPeak) mergedValleys.add(cur);
-            // else: skip this valley — it's just noise between two adjacent valleys
+            if (!hasPeak) continue; // absorb into the previous valley region
+
+            // Expand the low region around cur to its full extent below vThresh,
+            // then use the midpoint as the separator.
+            int regionLo = cur, regionHi = cur;
+            while (regionLo > 0          && smoothed[regionLo - 1] < vThresh) regionLo--;
+            while (regionHi < h - 1      && smoothed[regionHi + 1] < vThresh) regionHi++;
+            mergedValleys.add((regionLo + regionHi) / 2);
         }
-        mergedValleys.add(valleyRows.get(valleyRows.size() - 1));
+        mergedValleys.add(h);
 
         // --- build spans: between consecutive valley pairs where peak is strong enough ---
-        double peakThresh = minPeakRatio * globalMax;
-        int minH = minLineHeight, maxH = maxLineHeight;
+        double peakThresh = peakMin;
+        int minH = minLineHeight.get(), maxH = maxLineHeight.get();
         List<TextLine> lines = new ArrayList<>();
         int bufIdx = 0;
 
@@ -132,16 +161,9 @@ public class TextLineExtractorProcessor {
             for (int r = top; r < bottom; r++) if (smoothed[r] > spanPeak) spanPeak = smoothed[r];
             if (spanPeak < peakThresh) continue;
 
-            // tighten the span to actual active rows within the valley boundaries
-            int tight0 = top, tight1 = bottom;
-            while (tight0 < bottom && smoothed[tight0] < peakThresh) tight0++;
-            while (tight1 > tight0  && smoothed[tight1 - 1] < peakThresh) tight1--;
-            int tH = tight1 - tight0;
-            if (tH < minH || tH > maxH) continue;
-
-            Mat crop = warpedBgr.submat(new Rect(0, tight0, w, tH));
+            Mat crop = warpedBgr.submat(new Rect(0, top, w, spanH));
             if (bufIdx >= lineBuffers.size()) lineBuffers.add(new FxImageUtils.ImageBuffer());
-            lines.add(new TextLine(tight0, tight1, lineBuffers.get(bufIdx++).update(crop)));
+            lines.add(new TextLine(top, bottom, lineBuffers.get(bufIdx++).update(crop)));
         }
 
         int[] valleyArr = mergedValleys.stream().mapToInt(Integer::intValue).toArray();

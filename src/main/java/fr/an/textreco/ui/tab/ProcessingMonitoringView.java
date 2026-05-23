@@ -1,6 +1,7 @@
 package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.FrameStats;
+import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
@@ -9,7 +10,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
-public class ProcessingTab {
+public class ProcessingMonitoringView {
 
     @Getter
     private final VBox root = new VBox(12);
@@ -28,7 +29,8 @@ public class ProcessingTab {
     // exponential moving average for FPS smoothing (α = 0.1)
     private double smoothFps = 0;
 
-    public ProcessingTab() {
+    public ProcessingMonitoringView(ProcessingPipeline pipeline) {
+        pipeline.getFrameStatsProperty().addListener((obs, o, s) -> { if (s != null) onStats(s); });
         root.setPadding(new Insets(16));
         root.setStyle("-fx-background-color: #1e1e1e;");
 
@@ -57,7 +59,7 @@ public class ProcessingTab {
         grid.add(valueLabel,     1, row);
     }
 
-    public void onStats(FrameStats s) {
+    private void onStats(FrameStats s) {
         smoothFps = smoothFps == 0 ? s.fps() : smoothFps * 0.9 + s.fps() * 0.1;
 
         resolutionLabel .setText(s.width() + " × " + s.height());

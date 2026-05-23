@@ -13,7 +13,6 @@ import fr.an.textreco.util.FxImageUtils.ImageBuffer;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
-import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.scene.image.WritableImage;
 import lombok.Getter;
@@ -40,7 +39,6 @@ public class ProcessingPipeline {
     @Getter private final ObjectProperty<PreProcessingResult>      preProcessingProperty    = new SimpleObjectProperty<>();
     @Getter private final ObjectProperty<TextLineExtractionResult> textLinesProperty        = new SimpleObjectProperty<>();
     @Getter private final ObjectProperty<FrameStats>               frameStatsProperty       = new SimpleObjectProperty<>();
-    @Getter private final BooleanProperty                          frozenProperty           = new SimpleBooleanProperty(false);
 
     // -------------------------------------------------------------------------
     // processors
@@ -48,6 +46,8 @@ public class ProcessingPipeline {
 
     @Getter private final InputSource                  inputSource;
     @Getter private final CameraCapture                cameraCapture;
+
+    public BooleanProperty getFrozenProperty() { return inputSource.frozenProperty(); }
     private final EdgeDetectorProcessor        edgeDetector;
     private final PerspectiveTransformProcessor perspectiveProcessor;
     private final PreProcessingProcessor        preProcessingProcessor;
@@ -95,17 +95,14 @@ public class ProcessingPipeline {
     // -------------------------------------------------------------------------
 
     public void toggleFreeze() {
-        boolean next = !inputSource.frozen;
-        inputSource.frozen = next;
-        frozenProperty.set(next);
+        inputSource.setFrozen(!inputSource.isFrozen());
     }
 
     public void loadImageFile(File file) {
         Mat mat = Imgcodecs.imread(file.getAbsolutePath());
         if (mat.empty()) { System.err.println("Could not load image: " + file); return; }
         inputSource.setLoadedMat(mat);
-        inputSource.frozen = true;
-        frozenProperty.set(true);
+        inputSource.setFrozen(true);
     }
 
     public void saveRawImage(File file) {
@@ -114,8 +111,7 @@ public class ProcessingPipeline {
 
     public void selectCamera(int index) {
         cameraCapture.selectCamera(index);
-        inputSource.frozen = false;
-        frozenProperty.set(false);
+        inputSource.setFrozen(false);
     }
 
     // -------------------------------------------------------------------------
@@ -182,7 +178,7 @@ public class ProcessingPipeline {
                     frameStatsProperty.set(stats);
                 });
 
-                if (inputSource.frozen) Thread.sleep(50);
+                if (inputSource.isFrozen()) Thread.sleep(50);
             }
         } catch (InterruptedException ignored) {
         } finally {

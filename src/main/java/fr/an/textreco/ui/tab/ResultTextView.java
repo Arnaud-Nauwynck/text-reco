@@ -11,14 +11,14 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
-public class ResultsTab {
+public class ResultTextView {
 
     @Getter
     private final BorderPane root = new BorderPane();
 
     private final TextArea textArea = new TextArea();
 
-    public ResultsTab() {
+    public ResultTextView() {
         Label title = new Label("Recognised Text");
         title.setFont(Font.font("System", FontWeight.BOLD, 14));
         title.setStyle("-fx-text-fill: #aaaaff;");

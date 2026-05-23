@@ -12,7 +12,6 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ToggleButton;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -26,7 +25,7 @@ import lombok.Getter;
 import java.io.File;
 import java.util.List;
 
-public class ImageInputTab {
+public class ImageInputView {
 
     @Getter
     private final VBox root = new VBox(6);
@@ -34,9 +33,14 @@ public class ImageInputTab {
     private final ImageView rawImageView       = new ImageView();
     private final ImageView processedImageView = new ImageView();
 
-    public ImageInputTab(ProcessingPipeline pipeline) {
+    public ImageInputView(ProcessingPipeline pipeline) {
         configureImageView(rawImageView);
         configureImageView(processedImageView);
+
+        rawImageView.imageProperty().bind(pipeline.getRawImageProperty());
+        pipeline.getPreProcessingProperty().addListener((obs, o, r) -> {
+            if (r != null) processedImageView.setImage(r.binaryImage());
+        });
 
         HBox toolbar = buildToolbar(pipeline);
 
@@ -171,11 +175,4 @@ public class ImageInputTab {
                         : "-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd; -fx-border-color: #555; -fx-border-width: 1;"));
     }
 
-    public void setRawImage(Image image) {
-        rawImageView.setImage(image);
-    }
-
-    public void setProcessedImage(Image image) {
-        processedImageView.setImage(image);
-    }
 }

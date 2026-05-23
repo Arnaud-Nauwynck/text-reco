@@ -2,6 +2,7 @@ package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
+import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -23,7 +24,7 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ColumnsTab {
+public class ColumnsDetectionView {
 
     private static final double LINE_VIEW_W = 800;
     private static final double LINE_VIEW_H = 80;
@@ -59,7 +60,8 @@ public class ColumnsTab {
     private int[]                    colStarts    = new int[0]; // detected column start pixels
     private int                      charWidth    = 0;          // median column width
 
-    public ColumnsTab() {
+    public ColumnsDetectionView(ProcessingPipeline pipeline) {
+        pipeline.getTextLinesProperty().addListener((obs, o, r) -> { if (r != null) onResult(r); });
         lineView.setPreserveRatio(true);
         lineView.setFitWidth(LINE_VIEW_W);
         lineView.setFitHeight(LINE_VIEW_H);
@@ -129,7 +131,7 @@ public class ColumnsTab {
     // public update
     // -------------------------------------------------------------------------
 
-    public void onResult(TextLineExtractionResult result) {
+    private void onResult(TextLineExtractionResult result) {
         this.lastResult = result;
         int lineCount = result == null ? 0 : result.lines().size();
         if (lineCount == 0) {

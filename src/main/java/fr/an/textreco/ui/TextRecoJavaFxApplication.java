@@ -25,26 +25,21 @@ public class TextRecoJavaFxApplication extends Application {
 
     @Override
     public void start(Stage stage) {
-        AppSettings appSettings       = new AppSettings();
-        EdgeDetectorSettings edgeSettings = new EdgeDetectorSettings();
+        AppSettings          appSettings   = new AppSettings();
+        EdgeDetectorSettings edgeSettings  = new EdgeDetectorSettings();
 
-        EdgeDetectorProcessor         edgeDetector    = new EdgeDetectorProcessor(edgeSettings);
-        PerspectiveTransformProcessor perspProcessor  = new PerspectiveTransformProcessor();
-        PreProcessingProcessor        preProcessor    = new PreProcessingProcessor(appSettings);
-        TextLineExtractorProcessor    lineExtractor   = new TextLineExtractorProcessor();
+        EdgeDetectorProcessor edgeDetector   = new EdgeDetectorProcessor(edgeSettings);
+        PerspectiveTransformProcessor perspProcessor = new PerspectiveTransformProcessor();
+        PreProcessingProcessor preProcessor   = new PreProcessingProcessor(appSettings);
+        TextLineExtractorProcessor    lineExtractor  = new TextLineExtractorProcessor();
 
         ProcessingPipeline pipeline = new ProcessingPipeline(
                 edgeDetector, perspProcessor, preProcessor, lineExtractor);
 
+        // Views subscribe to pipeline properties in their own constructors.
         TextRecoView view = new TextRecoView(
                 pipeline, appSettings, edgeSettings,
                 perspProcessor, preProcessor, lineExtractor);
-
-        pipeline.getRawImageProperty()        .addListener((obs, o, n) -> view.setRawImage(n));
-        pipeline.getPerspectiveImageProperty().addListener((obs, o, n) -> view.setPerspectiveImage(n));
-        pipeline.getPreProcessingProperty()   .addListener((obs, o, n) -> view.onPreProcessing(n));
-        pipeline.getTextLinesProperty()       .addListener((obs, o, n) -> view.onTextLines(n));
-        pipeline.getFrameStatsProperty()      .addListener((obs, o, n) -> view.onStats(n));
 
         stage.getIcons().clear();
         stage.setScene(new Scene(view.getRoot(), 1100, 620));

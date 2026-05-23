@@ -1,6 +1,7 @@
 package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.PreProcessingResult;
+import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -10,7 +11,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
-public class PreProcessingTab {
+public class PreProcessingView {
 
     private static final double BIG_W   = 320;
     private static final double BIG_H   = 240;
@@ -26,7 +27,8 @@ public class PreProcessingTab {
     private final ImageView morphFwdView = imageView(MORPH_W, MORPH_H);
     private final ImageView morphBwdView = imageView(MORPH_W, MORPH_H);
 
-    public PreProcessingTab() {
+    public PreProcessingView(ProcessingPipeline pipeline) {
+        pipeline.getPreProcessingProperty().addListener((obs, o, r) -> onResult(r));
         root.setPadding(new Insets(8));
         root.setStyle("-fx-background-color: #1e1e1e;");
 
@@ -44,7 +46,7 @@ public class PreProcessingTab {
         root.getChildren().addAll(topRow, sectionLabel("Morphological Openings"), morphRow);
     }
 
-    public void onResult(PreProcessingResult r) {
+    private void onResult(PreProcessingResult r) {
         if (r == null) return;
         binaryView  .setImage(r.binaryImage());
         morphHView  .setImage(r.morphHoriz());

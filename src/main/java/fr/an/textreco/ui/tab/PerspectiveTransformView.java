@@ -1,6 +1,7 @@
 package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
+import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
@@ -24,7 +25,7 @@ import lombok.Getter;
  * Shows the raw camera frame with 4 draggable corner handles defining the
  * perspective quad, and a warped output preview beside it.
  */
-public class PerspectiveTab {
+public class PerspectiveTransformView {
 
     private static final double DISPLAY_W = 480;
     private static final double DISPLAY_H = 360;
@@ -52,8 +53,10 @@ public class PerspectiveTab {
     private double offsetX   = 0;
     private double offsetY   = 0;
 
-    public PerspectiveTab(PerspectiveTransformProcessor processor) {
+    public PerspectiveTransformView(ProcessingPipeline pipeline, PerspectiveTransformProcessor processor) {
         this.processor = processor;
+        pipeline.getRawImageProperty()        .addListener((obs, o, img) -> setRawImage(img));
+        pipeline.getPerspectiveImageProperty().addListener((obs, o, img) -> setWarpedImage(img));
 
         configureImageView(rawView);
         configureImageView(warpedView);
@@ -166,7 +169,7 @@ public class PerspectiveTab {
         return panel;
     }
 
-    public void setRawImage(Image image) {
+    private void setRawImage(Image image) {
         rawView.setImage(image);
         if (image != null) {
             // compute actual rendered bounds inside the ImageView (preserveRatio)
@@ -180,7 +183,7 @@ public class PerspectiveTab {
         }
     }
 
-    public void setWarpedImage(Image image) {
+    private void setWarpedImage(Image image) {
         warpedView.setImage(image);
     }
 }
