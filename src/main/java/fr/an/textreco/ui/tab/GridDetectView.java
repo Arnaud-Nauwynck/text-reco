@@ -7,6 +7,7 @@ import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.model.GridDetectorSettings;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
+import javafx.beans.property.IntegerProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -30,7 +31,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-public class LineAreasDetectionView {
+public class GridDetectView {
 
     private static final double PREVIEW_W = 520;
     private static final double PREVIEW_H = 400;
@@ -78,10 +79,18 @@ public class LineAreasDetectionView {
     private final CheckBox        forceCharX0Cb  = styledCheckBox("Force x0");
     private final Spinner<Double> forcedCharX0Sp = dblSpinner(0.0, 500.0, 0.0);
 
+    // --- forced line / column counts ---
+    private final Label            detectedLineCountLabel = statLabel("Lines detected: —");
+    private final Label            detectedColCountLabel  = statLabel("Cols  detected: —");
+    private final CheckBox         forceLineCountCb  = styledCheckBox("Force line count");
+    private final Spinner<Integer> forcedLineCountSp = intSpinner(1, 500, 24);
+    private final CheckBox         forceColCountCb   = styledCheckBox("Force col count");
+    private final Spinner<Integer> forcedColCountSp  = intSpinner(1, 500, 80);
+
     private GridDetectionResult lastGrid    = null;
     private PreProcessingResult lastPreProc = null;
 
-    public LineAreasDetectionView(ProcessingContext context,
+    public GridDetectView(ProcessingContext context,
                                   TextLineExtractorProcessor extractor) {
         context.perspectiveImageProperty.addListener((obs, o, img) -> { if (img != null) setWarpedImage(img); });
         context.preProcessingProperty   .addListener((obs, o, r)   -> onPreProcessing(r));
@@ -117,6 +126,14 @@ public class LineAreasDetectionView {
         bindDblSpinner(forcedCharX0Sp, gs.forcedCharX0);
         forcedCharX0Sp.disableProperty().bind(gs.forceCharX0.not());
 
+        forceLineCountCb.selectedProperty().bindBidirectional(gs.forceLineCount);
+        bindIntSpinner(forcedLineCountSp, gs.forcedLineCount);
+        forcedLineCountSp.disableProperty().bind(gs.forceLineCount.not());
+
+        forceColCountCb.selectedProperty().bindBidirectional(gs.forceColCount);
+        bindIntSpinner(forcedColCountSp, gs.forcedColCount);
+        forcedColCountSp.disableProperty().bind(gs.forceColCount.not());
+
         warpedView.setPreserveRatio(true);
         warpedView.setFitWidth(PREVIEW_W);
         warpedView.setFitHeight(PREVIEW_H);
@@ -151,6 +168,8 @@ public class LineAreasDetectionView {
         HBox forceOffsetRow = hrow(
                 forceLineY0Cb, forcedLineY0Sp, styledLabel("px   "),
                 forceCharX0Cb, forcedCharX0Sp, styledLabel("px"));
+        HBox forceLineCountRow = hrow(detectedLineCountLabel, forceLineCountCb, forcedLineCountSp);
+        HBox forceColCountRow  = hrow(detectedColCountLabel,  forceColCountCb,  forcedColCountSp);
 
         lineScroll = new ScrollPane(lineList);
         lineScroll.setFitToWidth(true);
@@ -160,6 +179,7 @@ public class LineAreasDetectionView {
         VBox rightContent = new VBox(6,
                 lineCountLabel, gridLabel, lineHLabel, charWLabel,
                 forceLineHRow, forceCharWRow, forceOffsetRow,
+                forceLineCountRow, forceColCountRow,
                 chartRow1, chartRow2,
                 sectionLabel("Extracted Lines"), lineScroll);
         VBox.setVgrow(lineScroll, javafx.scene.layout.Priority.ALWAYS);
@@ -180,14 +200,24 @@ public class LineAreasDetectionView {
         redrawOverlay(result);
         redrawHHistogram(result);
         rebuildLineList(result);
-        lineCountLabel.setText("Lines: " + result.lines().size()
+        int detectedLines = result.lines().size();
+        lineCountLabel.setText("Lines: " + detectedLines
                 + "  (" + result.frameWidth() + "×" + result.frameHeight() + ")");
+        detectedLineCountLabel.setText("Lines detected: " + detectedLines);
     }
 
     private void setWarpedImage(Image image) { warpedView.setImage(image); }
 
     private void onGrid(GridDetectionResult r) {
-        if (r == null) { gridLabel.setText("Grid: —"); return; }
+        if (r == null) {
+            gridLabel.setText("Grid: —");
+            detectedColCountLabel.setText("Cols  detected: —");
+            return;
+        }
+        int detectedCols = r.bestCharW() > 0 && lastPreProc != null
+                ? (int) Math.round(lastPreProc.frameWidth() / r.bestCharW())
+                : r.vValleysFiltered().length;
+        detectedColCountLabel.setText("Cols  detected: " + detectedCols);
         gridLabel.setText(String.format("x0=%.1f  y0=%.1f  charW=%.1f  lineH=%.1f",
                 r.bestCharX0(), r.bestLineY0(), r.bestCharW(), r.bestLineH()));
         lineHLabel.setText(String.format("lineH: %.1fpx  y0=%.1f", r.bestLineH(), r.bestLineY0())
@@ -564,6 +594,24 @@ public class LineAreasDetectionView {
                     }
                 });
         return s;
+    }
+
+    private static Spinner<Integer> intSpinner(int min, int max, int initial) {
+        Spinner<Integer> s = new Spinner<>(
+                new SpinnerValueFactory.IntegerSpinnerValueFactory(min, max, initial));
+        s.setEditable(true);
+        s.setPrefWidth(80);
+        s.setStyle("-fx-background-color: #3a3a3a;");
+        s.getEditor().setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #eeeeee; -fx-font-family: monospace;");
+        return s;
+    }
+
+    private static void bindIntSpinner(Spinner<Integer> s, IntegerProperty prop) {
+        s.getValueFactory().setValue(prop.get());
+        s.valueProperty().addListener((obs, o, n) -> { if (n != null) prop.set(n); });
+        prop.addListener((obs, o, n) -> {
+            if (n.intValue() != s.getValue()) s.getValueFactory().setValue(n.intValue());
+        });
     }
 
     private static void bindDblSpinner(Spinner<Double> s, DoubleProperty prop) {

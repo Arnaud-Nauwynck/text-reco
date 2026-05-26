@@ -52,4 +52,16 @@ public class GridDetectorSettings {
 
     public final BooleanProperty forceCharX0  = new SimpleBooleanProperty(false);
     public final DoubleProperty  forcedCharX0 = new SimpleDoubleProperty(0.0);
+
+    // -------------------------------------------------------------------------
+    // Force number of lines / columns
+    // -------------------------------------------------------------------------
+
+    /** When true, override the auto-detected line count with {@link #forcedLineCount}. */
+    public final BooleanProperty forceLineCount  = new SimpleBooleanProperty(false);
+    public final IntegerProperty forcedLineCount = new SimpleIntegerProperty(24);
+
+    /** When true, override the auto-detected column count with {@link #forcedColCount}. */
+    public final BooleanProperty forceColCount   = new SimpleBooleanProperty(false);
+    public final IntegerProperty forcedColCount  = new SimpleIntegerProperty(80);
 }

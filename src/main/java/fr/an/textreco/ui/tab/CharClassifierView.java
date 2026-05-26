@@ -7,15 +7,20 @@ import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.CharTemplateClassifier;
 import fr.an.textreco.processing.CharTemplateDb;
+import fr.an.textreco.processing.PreComputedFeaturesChar;
+import fr.an.textreco.util.FxImageUtils;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
+import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -23,8 +28,23 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
+import org.opencv.core.Mat;
 
-public class ColumnsDetectionView {
+import java.util.Map;
+
+/**
+ * "Char Classifier" tab.
+ *
+ * <p>Left side: line/column/offset sliders, the selected line image with
+ * column-grid overlay, the V-histogram, and the cropped character with its
+ * classification result and Hu-moment values.
+ *
+ * <p>Right side: a {@code compareWithChars} text-field lets the user type
+ * any subset of characters; the right panel shows a {@link CharFeatureCardBuilder}
+ * card for each of those characters so the crop can be visually compared
+ * against the template features.
+ */
+public class CharClassifierView {
 
     private static final double LINE_VIEW_W = 800;
     private static final double LINE_VIEW_H = 80;
@@ -32,17 +52,19 @@ public class ColumnsDetectionView {
     private static final double HIST_H      = 80;
     private static final double CHAR_VIEW_W = 160;
     private static final double CHAR_VIEW_H = 160;
+    private static final int    COMPARE_SPACING = 6;
 
     @Getter
-    private final VBox root = new VBox(8);
+    private final HBox root = new HBox(12);
 
-    // --- controls ---
-    private final Slider lineSlider     = new Slider(0, 0, 0);
-    private final Label  lineValLabel   = monoLabel("—");
-    private final Slider colSlider      = new Slider(0, 0, 0);
-    private final Label  colValLabel    = monoLabel("—");
-    private final Slider offsetSlider   = new Slider(-50, 50, 0);
-    private final Label  offsetValLabel = monoLabel("0");
+    // --- controls (left panel) ---
+    private final Slider    lineSlider     = new Slider(0, 0, 0);
+    private final Label     lineValLabel   = monoLabel("—");
+    private final Slider    colSlider      = new Slider(0, 0, 0);
+    private final Label     colValLabel    = monoLabel("—");
+    private final Slider    offsetSlider   = new Slider(-50, 50, 0);
+    private final Label     offsetValLabel = monoLabel("0");
+    private final TextField compareField   = new TextField();
 
     // --- line image + column grid overlay ---
     private final ImageView lineView    = new ImageView();
@@ -51,11 +73,15 @@ public class ColumnsDetectionView {
     // --- vertical histogram of selected line ---
     private final Canvas histCanvas = new Canvas(HIST_W, HIST_H);
 
-    // --- zoomed char crop ---
+    // --- cropped char ---
     private final ImageView charView        = new ImageView();
-    private final Label     infoLabel       = monoLabel("");
     private final Label     classifiedLabel = monoLabel("");
     private final Label     huMomentsLabel  = monoLabel("");
+    private final Label     infoLabel       = monoLabel("");
+
+    // --- right panel: candidate template cards ---
+    private final FlowPane  compareFlow     = new FlowPane(COMPARE_SPACING, COMPARE_SPACING);
+    private final ScrollPane compareScroll  = new ScrollPane(compareFlow);
 
     // --- state ---
     private TextLineExtractionResult lastResult  = null;
@@ -65,10 +91,17 @@ public class ColumnsDetectionView {
     private int                      charWidth   = 0;
 
     private final CharTemplateClassifier classifier;
+    private final CharTemplateDb          db;
 
-    public ColumnsDetectionView(ProcessingContext context,
-                                CharTemplateClassifier classifier) {
+    // -------------------------------------------------------------------------
+    // construction
+    // -------------------------------------------------------------------------
+
+    public CharClassifierView(ProcessingContext context,
+                              CharTemplateClassifier classifier) {
         this.classifier = classifier;
+        this.db         = classifier.getDb();
+
         context.textLinesProperty    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
         context.gridDetectionProperty.addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
         context.preProcessingProperty.addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
@@ -86,61 +119,64 @@ public class ColumnsDetectionView {
 
         histCanvas.setStyle("-fx-background-color: #1a1a1a;");
 
-        // line slider
-        lineSlider.setShowTickLabels(true);
-        lineSlider.setMajorTickUnit(1);
-        lineSlider.setSnapToTicks(true);
-        lineSlider.setPrefWidth(400);
-        lineSlider.valueProperty().addListener((obs, o, n) -> {
-            lineValLabel.setText(String.valueOf(n.intValue()));
-            refreshDisplay();
-        });
+        // sliders
+        configureSlider(lineSlider,   1,  400, lineValLabel,   () -> refreshDisplay());
+        configureSlider(colSlider,    5,  400, colValLabel,    () -> refreshDisplay());
+        configureSlider(offsetSlider, 10, 400, offsetValLabel, () -> refreshDisplay());
 
-        // col index slider
-        colSlider.setShowTickLabels(true);
-        colSlider.setMajorTickUnit(5);
-        colSlider.setSnapToTicks(true);
-        colSlider.setPrefWidth(400);
-        colSlider.valueProperty().addListener((obs, o, n) -> {
-            colValLabel.setText(String.valueOf(n.intValue()));
-            refreshDisplay();
-        });
+        // compareWithChars field
+        compareField.setPromptText("e.g. MNABab01");
+        compareField.setPrefWidth(200);
+        compareField.setStyle("-fx-background-color: #2a2a2a; -fx-text-fill: #eeeeee; -fx-font-family: monospace;");
+        compareField.textProperty().addListener((obs, o, n) -> rebuildComparePanel());
 
-        // offset slider
-        offsetSlider.setShowTickLabels(true);
-        offsetSlider.setMajorTickUnit(10);
-        offsetSlider.setPrefWidth(400);
-        offsetSlider.valueProperty().addListener((obs, o, n) -> {
-            offsetValLabel.setText(String.valueOf(n.intValue()));
-            refreshDisplay();
-        });
+        // classified label style
+        classifiedLabel.setFont(Font.font("Monospaced", FontWeight.BOLD, 36));
+        classifiedLabel.setStyle("-fx-text-fill: #88ff88; -fx-font-family: monospace;");
+        huMomentsLabel.setStyle("-fx-text-fill: #aaddff; -fx-font-family: monospace; -fx-font-size: 11;");
 
+        // compare panel
+        compareFlow.setPadding(new Insets(6));
+        compareFlow.setStyle("-fx-background-color: #1e1e1e;");
+        compareScroll.setFitToWidth(false);
+        compareScroll.setFitToHeight(false);
+        compareScroll.setPrefWidth(420);
+        compareScroll.setStyle("-fx-background-color: #1e1e1e; -fx-background: #1e1e1e;");
+
+        // --- left panel layout ---
         HBox lineRow   = hrow(styledLabel("Line index:"),  lineSlider,   lineValLabel);
         HBox colRow    = hrow(styledLabel("Col index:"),   colSlider,    colValLabel);
         HBox offsetRow = hrow(styledLabel("Offset (px):"), offsetSlider, offsetValLabel);
+        HBox compareRow = hrow(styledLabel("Compare with chars:"), compareField);
 
         StackPane lineStack = new StackPane(lineView, lineOverlay);
         lineStack.setAlignment(Pos.TOP_LEFT);
         lineStack.setMaxSize(LINE_VIEW_W, LINE_VIEW_H);
 
-        classifiedLabel.setFont(Font.font("Monospaced", FontWeight.BOLD, 36));
-        classifiedLabel.setStyle("-fx-text-fill: #88ff88; -fx-font-family: monospace;");
-
-        huMomentsLabel.setStyle("-fx-text-fill: #aaddff; -fx-font-family: monospace; -fx-font-size: 11;");
-
         VBox charPanel = panel("Char Crop", new VBox(4, charView, classifiedLabel, huMomentsLabel));
         VBox infoPanel = panel("Info", infoLabel);
 
-        HBox bottomRow = new HBox(12, charPanel, infoPanel);
-        bottomRow.setAlignment(Pos.TOP_LEFT);
+        HBox cropRow = new HBox(12, charPanel, infoPanel);
+        cropRow.setAlignment(Pos.TOP_LEFT);
 
-        root.setPadding(new Insets(10));
-        root.setStyle("-fx-background-color: #1e1e1e;");
-        root.getChildren().addAll(
-                lineRow, colRow, offsetRow,
+        VBox leftPanel = new VBox(8,
+                lineRow, colRow, offsetRow, compareRow,
                 panel("V-Histogram (selected line)", histCanvas),
                 panel("Selected Line + columns", lineStack),
-                bottomRow);
+                cropRow);
+        leftPanel.setPadding(new Insets(10));
+        leftPanel.setStyle("-fx-background-color: #1e1e1e;");
+
+        // --- right panel label ---
+        Label rightTitle = new Label("Candidate templates");
+        rightTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
+        rightTitle.setStyle("-fx-text-fill: #bbbbbb;");
+        VBox rightPanel = new VBox(4, rightTitle, compareScroll);
+        rightPanel.setPadding(new Insets(10, 10, 10, 0));
+        rightPanel.setStyle("-fx-background-color: #1e1e1e;");
+
+        root.getChildren().addAll(leftPanel, rightPanel);
+        root.setStyle("-fx-background-color: #1e1e1e;");
     }
 
     // -------------------------------------------------------------------------
@@ -160,10 +196,6 @@ public class ColumnsDetectionView {
         refreshDisplay();
     }
 
-    // -------------------------------------------------------------------------
-    // column detection from grid
-    // -------------------------------------------------------------------------
-
     private void onGridOrPreProc() {
         if (lastGrid == null || lastPreProc == null) return;
 
@@ -173,11 +205,9 @@ public class ColumnsDetectionView {
         int charW = (int) Math.max(1, Math.round(charWd));
         int x0    = (int) Math.round(x0d);
 
-        // rebuild colStarts from the detected periodic grid
         int count = fw > 0 && charW > 0 ? (fw - x0 + charW - 1) / charW : 0;
         int[] starts = new int[count];
         for (int i = 0; i < count; i++) starts[i] = (int) Math.round(x0d + i * charWd);
-        // include columns that extend backwards from x0 to 0
         int backCount = charW > 0 ? x0 / charW : 0;
         if (backCount > 0) {
             int[] full = new int[backCount + count];
@@ -195,6 +225,24 @@ public class ColumnsDetectionView {
 
         drawHistogram();
         refreshDisplay();
+    }
+
+    // -------------------------------------------------------------------------
+    // compare panel rebuild
+    // -------------------------------------------------------------------------
+
+    private void rebuildComparePanel() {
+        compareFlow.getChildren().clear();
+        String text = compareField.getText();
+        if (text == null || text.isBlank()) return;
+
+        Map<Character, PreComputedFeaturesChar> features = db.getCharFeatures();
+        for (char ch : text.toCharArray()) {
+            PreComputedFeaturesChar feat = features.get(ch);
+            if (feat != null) {
+                compareFlow.getChildren().add(CharFeatureCardBuilder.buildCard(ch, feat));
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -218,7 +266,6 @@ public class ColumnsDetectionView {
         float globalMax = 1f;
         for (float v : sums) if (v > globalMax) globalMax = v;
 
-        // bars — blue
         for (int x = 0; x < sums.length; x++) {
             double px = x * scaleX;
             double bh = (sums[x] / globalMax) * barH;
@@ -226,13 +273,11 @@ public class ColumnsDetectionView {
             gc.fillRect(px, HIST_H - bh, Math.max(1, scaleX), bh);
         }
 
-        // valley threshold line — dim amber horizontal
         double vThreshY = HIST_H - (0.25 * barH);
         gc.setStroke(Color.rgb(255, 180, 0, 0.55));
         gc.setLineWidth(0.8);
         gc.strokeLine(0, vThreshY, HIST_W, vThreshY);
 
-        // valley markers — bright amber verticals
         if (valleys != null) {
             gc.setStroke(Color.rgb(255, 220, 0, 0.9));
             gc.setLineWidth(1.2);
@@ -242,7 +287,6 @@ public class ColumnsDetectionView {
             }
         }
 
-        // grid lines from detected charWidth — purple
         if (lastGrid != null) {
             double charW = lastGrid.bestCharW();
             double x0    = lastGrid.bestCharX0();
@@ -271,6 +315,7 @@ public class ColumnsDetectionView {
             lineView.setImage(null);
             charView.setImage(null);
             classifiedLabel.setText("");
+            huMomentsLabel.setText("");
             infoLabel.setText("No lines detected.");
             return;
         }
@@ -291,7 +336,6 @@ public class ColumnsDetectionView {
         int imgW = (int) lineImg.getWidth();
         int imgH = (int) lineImg.getHeight();
 
-        // image → display scaling (preserveRatio fit)
         double scaleX = Math.min(LINE_VIEW_W / imgW, LINE_VIEW_H / imgH);
         double rendW  = imgW * scaleX;
         double rendH  = imgH * scaleX;
@@ -300,7 +344,7 @@ public class ColumnsDetectionView {
 
         int offset = (int) offsetSlider.getValue();
 
-        // draw all column grid lines — dim
+        // all column grid lines — dim
         gc.setStroke(Color.rgb(80, 160, 255, 0.35));
         gc.setLineWidth(1.0);
         for (int cs : colStarts) {
@@ -309,7 +353,6 @@ public class ColumnsDetectionView {
                 gc.strokeLine(px, offY, px, offY + rendH);
         }
 
-        // highlight selected column
         int colIdx = colStarts.length == 0 ? -1 : (int) Math.round(
                 Math.max(0, Math.min(colSlider.getValue(), colStarts.length - 1)));
 
@@ -322,23 +365,19 @@ public class ColumnsDetectionView {
             double px1 = offX + cxPx  * scaleX;
             double px2 = offX + cxEnd * scaleX;
 
-            // highlight band
             gc.setFill(Color.rgb(255, 220, 0, 0.18));
             gc.fillRect(px1, offY, px2 - px1, rendH);
-
-            // left edge cursor
             gc.setStroke(Color.rgb(255, 220, 0, 0.9));
             gc.setLineWidth(1.5);
             gc.strokeLine(px1, offY, px1, offY + rendH);
 
-            // crop char from line image
             int cropX = Math.max(0, cxPx);
             int cropW = Math.max(1, Math.min(cxEnd - cxPx, imgW - cropX));
             if (cropW > 0 && imgH > 0) {
                 WritableImage cropImg = new WritableImage(lineImg.getPixelReader(), cropX, 0, cropW, imgH);
                 charView.setImage(cropImg);
-                // Classify the crop and display Hu moments
-                org.opencv.core.Mat greyMat = fr.an.textreco.util.FxImageUtils.writableImageToGreyMat(cropImg);
+
+                Mat greyMat = FxImageUtils.writableImageToGreyMat(cropImg);
                 try {
                     CharTemplateClassifier.Result r = classifier.classify(greyMat);
                     classifiedLabel.setText(r.toString());
@@ -352,7 +391,7 @@ public class ColumnsDetectionView {
             infoLabel.setText(String.format(
                     "Line %d  y=%d–%d  h=%dpx%n" +
                     "Col %d/%d  x=%d–%d  w=%dpx%n" +
-                    "charWidth (median)=%dpx  offset=%dpx",
+                    "charWidth=%dpx  offset=%dpx",
                     lineIdx, line.rowStart(), line.rowEnd(), line.height(),
                     colIdx, colStarts.length, cxPx, cxEnd, cropW,
                     charWidth, offset));
@@ -361,7 +400,7 @@ public class ColumnsDetectionView {
             classifiedLabel.setText("");
             huMomentsLabel.setText("");
             infoLabel.setText(String.format(
-                    "Line %d  y=%d–%d  h=%dpx%n%d columns detected  charWidth=%dpx",
+                    "Line %d  y=%d–%d  h=%dpx%n%d columns  charWidth=%dpx",
                     lineIdx, line.rowStart(), line.rowEnd(), line.height(),
                     colStarts.length, charWidth));
         }
@@ -375,6 +414,18 @@ public class ColumnsDetectionView {
         if (lastResult == null) return 0;
         int n = lastResult.lines().size();
         return n == 0 ? 0 : Math.max(0, Math.min((int) lineSlider.getValue(), n - 1));
+    }
+
+    private static void configureSlider(Slider s, double majorTick, double prefWidth,
+                                        Label valLabel, Runnable onChange) {
+        s.setShowTickLabels(true);
+        s.setMajorTickUnit(majorTick);
+        s.setSnapToTicks(majorTick == 1 || majorTick == 5);
+        s.setPrefWidth(prefWidth);
+        s.valueProperty().addListener((obs, o, n) -> {
+            valLabel.setText(String.valueOf(n.intValue()));
+            onChange.run();
+        });
     }
 
     private VBox panel(String title, javafx.scene.Node content) {
@@ -407,16 +458,6 @@ public class ColumnsDetectionView {
         return b;
     }
 
-    /**
-     * Formats 7 log-scaled Hu moments as a compact multi-line string, e.g.:
-     * <pre>
-     * Hu moments (log-scaled):
-     *  h1= -1.234  h2= -3.456
-     *  h3= -5.678  h4= -7.890
-     *  h5=-12.345  h6= -8.765
-     *  h7= -9.012
-     * </pre>
-     */
     private static String formatHuMoments(double[] hu) {
         if (hu == null || hu.length < 7) return "Hu: n/a";
         StringBuilder sb = new StringBuilder("Hu moments (log-scaled):\n");

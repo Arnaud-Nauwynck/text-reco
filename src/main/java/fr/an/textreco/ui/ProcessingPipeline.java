@@ -8,6 +8,7 @@ import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.CameraCapture;
 import fr.an.textreco.processing.CharTemplateClassifier;
+import fr.an.textreco.processing.CharTemplateDb;
 import fr.an.textreco.processing.EdgeDetectorProcessor;
 import fr.an.textreco.processing.GridDetectorProcessor;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
@@ -53,7 +54,8 @@ public class ProcessingPipeline {
     private final PreProcessingProcessor            preProcessingProcessor;
     private final TextLineExtractorProcessor        lineExtractor;
     @Getter private final GridDetectorProcessor     gridDetector;
-    @Getter private final CharTemplateClassifier    charClassifier = new CharTemplateClassifier();
+    @Getter private final CharTemplateDb             charTemplateDb  = new CharTemplateDb();
+    @Getter private final CharTemplateClassifier    charClassifier  = new CharTemplateClassifier(charTemplateDb);
     private final TessOcrProcessor                  tessOcr       = new TessOcrProcessor();
 
     // ImageBuffers for raw and perspective — conversions that don't belong to a single processor
@@ -248,6 +250,7 @@ public class ProcessingPipeline {
             gridDetector.release();
             tessOcr.release();
             charClassifier.release();
+            charTemplateDb.release();
             rawImageBuf.release();
             edgeImageBuf.release();
             perspectiveImageBuf.release();
@@ -264,7 +267,7 @@ public class ProcessingPipeline {
         int    fw     = warped.cols();
         if (charW <= 0 || lineH <= 0) return "";
 
-        // Rebuild column starts from the detected grid (same logic as ColumnsDetectionView)
+        // Rebuild column starts from the detected grid (same logic as CharClassifierView)
         int charWInt  = (int) Math.max(1, Math.round(charW));
         int x0Int     = (int) Math.round(charX0);
         int fwdCount  = fw > 0 && charWInt > 0 ? (fw - x0Int + charWInt - 1) / charWInt : 0;

@@ -3,10 +3,10 @@ package fr.an.textreco.ui;
 import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
+import fr.an.textreco.ui.tab.CharClassifierView;
 import fr.an.textreco.ui.tab.CharFeaturesView;
-import fr.an.textreco.ui.tab.ColumnsDetectionView;
 import fr.an.textreco.ui.tab.ImageInputView;
-import fr.an.textreco.ui.tab.LineAreasDetectionView;
+import fr.an.textreco.ui.tab.GridDetectView;
 import fr.an.textreco.ui.tab.PerspectiveTransformView;
 import fr.an.textreco.ui.tab.PreProcessingView;
 import fr.an.textreco.ui.tab.ProcessingMonitoringView;
@@ -35,9 +35,9 @@ public class TextRecoView {
                 buildTab("Input",          new ImageInputView(context, pipeline).getRoot()),
                 buildTab("Perspective",    new PerspectiveTransformView(context, perspectiveProcessor).getRoot()),
                 buildTab("Pre-Processing", new PreProcessingView(context).getRoot()),
-                buildTab("Line Areas",     new LineAreasDetectionView(context, lineExtractor).getRoot()),
-                buildTab("Columns",        new ColumnsDetectionView(context, pipeline.getCharClassifier()).getRoot()),
-                buildTab("Char Features",  new CharFeaturesView(pipeline.getCharClassifier()).getRoot()),
+                buildTab("Grid Detect",    new GridDetectView(context, lineExtractor).getRoot()),
+                buildTab("Char Classifier", new CharClassifierView(context, pipeline.getCharClassifier()).getRoot()),
+                buildTab("Char Features",  new CharFeaturesView(pipeline.getCharTemplateDb()).getRoot()),
                 buildTab("TessOCR",        new TessOcrView(context).getRoot()),
                 buildTab("Settings",       new SettingsView(context, lineExtractor).getRoot()),
                 buildTab("Perfs",          new ProcessingMonitoringView(context).getRoot()),
