@@ -6,6 +6,6 @@ public interface FrameProcessor {
 
     void process(
             FrameData frame,
-            ProcessingContext context
+            ScratchContext context
     );
 }

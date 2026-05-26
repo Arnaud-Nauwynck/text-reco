@@ -1,7 +1,7 @@
 package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.PreProcessingResult;
-import fr.an.textreco.ui.ProcessingPipeline;
+import fr.an.textreco.model.ProcessingContext;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -31,8 +31,8 @@ public class PreProcessingView {
     private final ImageView closeFwdView  = imageView(MORPH_W, MORPH_H);
     private final ImageView closeBwdView  = imageView(MORPH_W, MORPH_H);
 
-    public PreProcessingView(ProcessingPipeline pipeline) {
-        pipeline.getPreProcessingProperty().addListener((obs, o, r) -> onResult(r));
+    public PreProcessingView(ProcessingContext context) {
+        context.preProcessingProperty.addListener((obs, o, r) -> onResult(r));
         root.setPadding(new Insets(8));
         root.setStyle("-fx-background-color: #1e1e1e;");
 

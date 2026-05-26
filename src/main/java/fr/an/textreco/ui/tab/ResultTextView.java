@@ -1,5 +1,6 @@
 package fr.an.textreco.ui.tab;
 
+import fr.an.textreco.model.ProcessingContext;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -18,7 +19,7 @@ public class ResultTextView {
 
     private final TextArea textArea = new TextArea();
 
-    public ResultTextView() {
+    public ResultTextView(ProcessingContext context) {
         Label title = new Label("Recognised Text");
         title.setFont(Font.font("System", FontWeight.BOLD, 14));
         title.setStyle("-fx-text-fill: #aaaaff;");
@@ -28,8 +29,16 @@ public class ResultTextView {
         textArea.setStyle("-fx-control-inner-background: #2d2d2d; -fx-text-fill: #eeeeee; -fx-font-family: monospace; -fx-font-size: 13;");
         textArea.setPromptText("Recognised text will appear here…");
 
+        // Bind text directly to the Model — no manual listener needed.
+        textArea.textProperty().bind(context.ocrProperty);
+
         Button clearBtn = new Button("Clear");
-        clearBtn.setOnAction(e -> textArea.clear());
+        clearBtn.setOnAction(e -> {
+            // Unbind temporarily so we can clear, then re-bind.
+            textArea.textProperty().unbind();
+            textArea.clear();
+            textArea.textProperty().bind(context.ocrProperty);
+        });
         clearBtn.setStyle("-fx-background-color: #444; -fx-text-fill: #ddd;");
 
         HBox toolbar = new HBox(8, clearBtn);
@@ -42,14 +51,5 @@ public class ResultTextView {
         root.setCenter(textArea);
         BorderPane.setMargin(textArea, new Insets(0, 16, 16, 16));
         root.setStyle("-fx-background-color: #1e1e1e;");
-    }
-
-    public void appendText(String text) {
-        textArea.appendText(text);
-        textArea.appendText("\n");
-    }
-
-    public void setText(String text) {
-        textArea.setText(text);
     }
 }

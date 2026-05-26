@@ -2,11 +2,11 @@ package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.PreProcessingResult;
+import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
-import fr.an.textreco.processing.GridDetectorProcessor;
+import fr.an.textreco.model.GridDetectorSettings;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
-import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -66,9 +66,9 @@ public class LineAreasDetectionView {
     private final ScrollPane lineScroll;
 
     // --- forced periods ---
-    private final CheckBox        forceLineHCb      = styledCheckBox("Force lineH");
-    private final Spinner<Double> forcedLineHSp     = dblSpinner(1.0, 200.0, 28.0);
-    private final CheckBox        forceCharWCb      = styledCheckBox("Force charW");
+    private final CheckBox        forceLineHCb       = styledCheckBox("Force lineH");
+    private final Spinner<Double> forcedLineHSp      = dblSpinner(1.0, 200.0, 28.0);
+    private final CheckBox        forceCharWCb       = styledCheckBox("Force charW");
     private final Spinner<Double> forcedCharWRatioSp = dblSpinner(0.1, 20.0, 2.0);
     private final Spinner<Double> forcedCharWPxSp    = dblSpinner(0.1, 200.0, 15.0);
 
@@ -81,39 +81,41 @@ public class LineAreasDetectionView {
     private GridDetectionResult lastGrid    = null;
     private PreProcessingResult lastPreProc = null;
 
-    public LineAreasDetectionView(ProcessingPipeline pipeline, TextLineExtractorProcessor extractor) {
-        pipeline.getPerspectiveImageProperty().addListener((obs, o, img) -> { if (img != null) setWarpedImage(img); });
-        pipeline.getPreProcessingProperty()   .addListener((obs, o, r)   -> onPreProcessing(r));
-        pipeline.getTextLinesProperty()       .addListener((obs, o, r)   -> { if (r != null) onResult(r); });
-        pipeline.getGridDetectionProperty()   .addListener((obs, o, r)   -> { lastGrid = r; onGrid(r); });
+    public LineAreasDetectionView(ProcessingContext context,
+                                  TextLineExtractorProcessor extractor) {
+        context.perspectiveImageProperty.addListener((obs, o, img) -> { if (img != null) setWarpedImage(img); });
+        context.preProcessingProperty   .addListener((obs, o, r)   -> onPreProcessing(r));
+        context.textLinesProperty       .addListener((obs, o, r)   -> { if (r != null) onResult(r); });
+        context.gridDetectionProperty   .addListener((obs, o, r)   -> { lastGrid = r; onGrid(r); });
 
-        GridDetectorProcessor proc = pipeline.getGridDetector();
-        forceLineHCb.selectedProperty().bindBidirectional(proc.forceLineHProperty());
-        bindDblSpinner(forcedLineHSp, proc.forcedLineHProperty());
-        forcedLineHSp.disableProperty().bind(proc.forceLineHProperty().not());
+        GridDetectorSettings gs = context.gridDetectorSettings;
 
-        forceCharWCb.selectedProperty().bindBidirectional(proc.forceCharWidthProperty());
-        bindDblSpinner(forcedCharWRatioSp, proc.forcedCharWRatioProperty());
-        bindDblSpinner(forcedCharWPxSp, proc.forcedCharWPxProperty());
-        forcedCharWRatioSp.disableProperty().bind(proc.forceCharWidthProperty().not());
-        forcedCharWPxSp.disableProperty().bind(proc.forceCharWidthProperty().not());
+        forceLineHCb.selectedProperty().bindBidirectional(gs.forceLineH);
+        bindDblSpinner(forcedLineHSp, gs.forcedLineH);
+        forcedLineHSp.disableProperty().bind(gs.forceLineH.not());
+
+        forceCharWCb.selectedProperty().bindBidirectional(gs.forceCharWidth);
+        bindDblSpinner(forcedCharWRatioSp, gs.forcedCharWRatio);
+        bindDblSpinner(forcedCharWPxSp, gs.forcedCharWPx);
+        forcedCharWRatioSp.disableProperty().bind(gs.forceCharWidth.not());
+        forcedCharWPxSp.disableProperty().bind(gs.forceCharWidth.not());
         // keep px = lineH / ratio when ratio changes (convenience sync, one-way)
-        proc.forcedCharWRatioProperty().addListener((obs, o, ratio) -> {
-            double lineH = proc.getForcedLineH();
-            if (ratio.doubleValue() > 0) proc.setForcedCharWPx(lineH / ratio.doubleValue());
+        gs.forcedCharWRatio.addListener((obs, o, ratio) -> {
+            double lineH = gs.forcedLineH.get();
+            if (ratio.doubleValue() > 0) gs.forcedCharWPx.set(lineH / ratio.doubleValue());
         });
-        proc.forcedCharWPxProperty().addListener((obs, o, px) -> {
-            double lineH = proc.getForcedLineH();
-            if (px.doubleValue() > 0) proc.setForcedCharWRatio(lineH / px.doubleValue());
+        gs.forcedCharWPx.addListener((obs, o, px) -> {
+            double lineH = gs.forcedLineH.get();
+            if (px.doubleValue() > 0) gs.forcedCharWRatio.set(lineH / px.doubleValue());
         });
 
-        forceLineY0Cb.selectedProperty().bindBidirectional(proc.forceLineY0Property());
-        bindDblSpinner(forcedLineY0Sp, proc.forcedLineY0Property());
-        forcedLineY0Sp.disableProperty().bind(proc.forceLineY0Property().not());
+        forceLineY0Cb.selectedProperty().bindBidirectional(gs.forceLineY0);
+        bindDblSpinner(forcedLineY0Sp, gs.forcedLineY0);
+        forcedLineY0Sp.disableProperty().bind(gs.forceLineY0.not());
 
-        forceCharX0Cb.selectedProperty().bindBidirectional(proc.forceCharX0Property());
-        bindDblSpinner(forcedCharX0Sp, proc.forcedCharX0Property());
-        forcedCharX0Sp.disableProperty().bind(proc.forceCharX0Property().not());
+        forceCharX0Cb.selectedProperty().bindBidirectional(gs.forceCharX0);
+        bindDblSpinner(forcedCharX0Sp, gs.forcedCharX0);
+        forcedCharX0Sp.disableProperty().bind(gs.forceCharX0.not());
 
         warpedView.setPreserveRatio(true);
         warpedView.setFitWidth(PREVIEW_W);

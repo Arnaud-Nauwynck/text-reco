@@ -1,12 +1,8 @@
 package fr.an.textreco.processing;
 
 import fr.an.textreco.model.GridDetectionResult;
-import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.DoubleProperty;
-import javafx.beans.property.IntegerProperty;
-import javafx.beans.property.SimpleBooleanProperty;
-import javafx.beans.property.SimpleDoubleProperty;
-import javafx.beans.property.SimpleIntegerProperty;
+import fr.an.textreco.model.GridDetectorSettings;
+import lombok.Getter;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 
@@ -41,85 +37,22 @@ import java.util.List;
  *
  * X range is constrained to [0.2, 0.9] × bestLineH after Y is resolved,
  * supporting narrow terminal fonts where charW ≈ lineH/3.
+ *
+ * All tunable parameters live in {@link GridDetectorSettings} (the Model).
+ * This processor reads them via property.get() on every frame — no copies kept.
  */
 public class GridDetectorProcessor {
 
-    private final IntegerProperty minLineH = new SimpleIntegerProperty(25);
-    private final IntegerProperty maxLineH = new SimpleIntegerProperty(80);
-    private final IntegerProperty minCharW = new SimpleIntegerProperty(8);
-    private final IntegerProperty maxCharW = new SimpleIntegerProperty(60);
-
-    public IntegerProperty minLineHProperty() { return minLineH; }
-    public int  getMinLineH()                 { return minLineH.get(); }
-    public void setMinLineH(int v)            { minLineH.set(v); }
-
-    public IntegerProperty maxLineHProperty() { return maxLineH; }
-    public int  getMaxLineH()                 { return maxLineH.get(); }
-    public void setMaxLineH(int v)            { maxLineH.set(v); }
-
-    public IntegerProperty minCharWProperty() { return minCharW; }
-    public int  getMinCharW()                 { return minCharW.get(); }
-    public void setMinCharW(int v)            { minCharW.set(v); }
-
-    public IntegerProperty maxCharWProperty() { return maxCharW; }
-    public int  getMaxCharW()                 { return maxCharW.get(); }
-    public void setMaxCharW(int v)            { maxCharW.set(v); }
-
-    private final BooleanProperty forceLineH            = new SimpleBooleanProperty(false);
-    private final DoubleProperty  forcedLineH           = new SimpleDoubleProperty(28.0);
-
-    public BooleanProperty forceLineHProperty()          { return forceLineH; }
-    public boolean         isForceLineH()                { return forceLineH.get(); }
-    public void            setForceLineH(boolean v)      { forceLineH.set(v); }
-
-    public DoubleProperty  forcedLineHProperty()         { return forcedLineH; }
-    public double          getForcedLineH()              { return forcedLineH.get(); }
-    public void            setForcedLineH(double v)      { forcedLineH.set(v); }
-
-    /** When true, skip X-axis valley detection and use forcedCharWPx directly. */
-    private final BooleanProperty forceCharWidth      = new SimpleBooleanProperty(false);
-    /** Ratio lineH/charW (e.g. 2.0 means charW = lineH/2). Convenience: updates forcedCharWPx when lineH changes. */
-    private final DoubleProperty  forcedCharWRatio    = new SimpleDoubleProperty(2.0);
-    /** Direct forced char width in pixels. Used when forceCharWidth is true. */
-    private final DoubleProperty  forcedCharWPx       = new SimpleDoubleProperty(15.0);
-
-    public BooleanProperty forceCharWidthProperty()    { return forceCharWidth; }
-    public boolean         isForceCharWidth()           { return forceCharWidth.get(); }
-    public void            setForceCharWidth(boolean v) { forceCharWidth.set(v); }
-
-    public DoubleProperty  forcedCharWRatioProperty()  { return forcedCharWRatio; }
-    public double          getForcedCharWRatio()        { return forcedCharWRatio.get(); }
-    public void            setForcedCharWRatio(double v){ forcedCharWRatio.set(v); }
-
-    public DoubleProperty  forcedCharWPxProperty()     { return forcedCharWPx; }
-    public double          getForcedCharWPx()           { return forcedCharWPx.get(); }
-    public void            setForcedCharWPx(double v)   { forcedCharWPx.set(v); }
-
-    private final BooleanProperty forceLineY0            = new SimpleBooleanProperty(false);
-    private final DoubleProperty  forcedLineY0           = new SimpleDoubleProperty(0.0);
-
-    public BooleanProperty forceLineY0Property()         { return forceLineY0; }
-    public boolean         isForceLineY0()               { return forceLineY0.get(); }
-    public void            setForceLineY0(boolean v)     { forceLineY0.set(v); }
-
-    public DoubleProperty  forcedLineY0Property()        { return forcedLineY0; }
-    public double          getForcedLineY0()             { return forcedLineY0.get(); }
-    public void            setForcedLineY0(double v)     { forcedLineY0.set(v); }
-
-    private final BooleanProperty forceCharX0            = new SimpleBooleanProperty(false);
-    private final DoubleProperty  forcedCharX0           = new SimpleDoubleProperty(0.0);
-
-    public BooleanProperty forceCharX0Property()         { return forceCharX0; }
-    public boolean         isForceCharX0()               { return forceCharX0.get(); }
-    public void            setForceCharX0(boolean v)     { forceCharX0.set(v); }
-
-    public DoubleProperty  forcedCharX0Property()        { return forcedCharX0; }
-    public double          getForcedCharX0()             { return forcedCharX0.get(); }
-    public void            setForcedCharX0(double v)     { forcedCharX0.set(v); }
+    @Getter
+    private final GridDetectorSettings settings;
 
     private float[] rowSums = new float[0];
     private float[] colSums = new float[0];
     private final Mat reduceScratch = new Mat();
+
+    public GridDetectorProcessor(GridDetectorSettings settings) {
+        this.settings = settings;
+    }
 
     public GridDetectionResult process(Mat morphHorizMat, Mat closeHorizMat,
                                        Mat morphVertMat,  Mat closeVertMat) {
@@ -138,7 +71,7 @@ public class GridDetectorProcessor {
 
     public GridDetectionResult processFromSums(float[] hRowSums, int h,
                                                float[] vColSums, int w) {
-        int minH = minLineH.get(), maxH = maxLineH.get();
+        int minH = settings.minLineH.get(), maxH = settings.maxLineH.get();
         minH = Math.max(2, Math.min(minH, h / 2));
         maxH = Math.max(minH + 1, Math.min(maxH, h));
 
@@ -152,8 +85,8 @@ public class GridDetectorProcessor {
 
         double bestLineH;
         double bestLineY0;
-        if (forceLineH.get()) {
-            bestLineH = forcedLineH.get();
+        if (settings.forceLineH.get()) {
+            bestLineH = settings.forcedLineH.get();
         } else {
             bestLineH = spanPeriod(hValleysRaw, diffHistY, minH, maxH);
             if (bestLineH <= 0) {
@@ -169,8 +102,8 @@ public class GridDetectorProcessor {
                 ? detectValleys(hRowSums, h, (int) Math.round(bestLineH))
                 : hValleysRaw;
 
-        if (forceLineY0.get()) {
-            bestLineY0 = forcedLineY0.get();
+        if (settings.forceLineY0.get()) {
+            bestLineY0 = settings.forcedLineY0.get();
         } else if (bestLineH > 0) {
             bestLineY0 = medianOffset(hValleys, bestLineH);
         } else {
@@ -178,14 +111,14 @@ public class GridDetectorProcessor {
         }
         // Filter: keep only valleys on the resolved periodic grid.
         int[] hValleysFiltered = filterValleys(hValleys, bestLineH, bestLineY0);
-        if (hValleysFiltered.length >= 2 && !forceLineY0.get()) {
+        if (hValleysFiltered.length >= 2 && !settings.forceLineY0.get()) {
             bestLineY0 = medianOffset(hValleysFiltered, bestLineH);
         }
 
         // ---- X axis: range constrained to [0.2, 0.9] × bestLineH ----
         // Terminal fonts can be narrow (charW ≈ lineH/3), so lower bound is 0.2×lineH.
-        int minW = Math.max(minCharW.get(), (int) Math.round(0.2 * bestLineH));
-        int maxW = Math.min(maxCharW.get(), (int) Math.round(0.9 * bestLineH));
+        int minW = Math.max(settings.minCharW.get(), (int) Math.round(0.2 * bestLineH));
+        int maxW = Math.min(settings.maxCharW.get(), (int) Math.round(0.9 * bestLineH));
         minW = Math.max(2, Math.min(minW, w / 2));
         maxW = Math.max(minW + 1, Math.min(maxW, w));
         int numCharW = maxW - minW + 1;
@@ -197,8 +130,8 @@ public class GridDetectorProcessor {
 
         double bestCharW;
         double bestCharX0;
-        if (forceCharWidth.get()) {
-            bestCharW = Math.max(0.1, forcedCharWPx.get());
+        if (settings.forceCharWidth.get()) {
+            bestCharW = Math.max(0.1, settings.forcedCharWPx.get());
         } else {
             bestCharW = spanPeriod(vValleysRaw, diffHistX, minW, maxW);
             if (bestCharW <= 0) {
@@ -214,15 +147,15 @@ public class GridDetectorProcessor {
                 ? detectValleys(vColSums, w, (int) Math.round(bestCharW))
                 : vValleysRaw;
 
-        if (forceCharX0.get()) {
-            bestCharX0 = forcedCharX0.get();
+        if (settings.forceCharX0.get()) {
+            bestCharX0 = settings.forcedCharX0.get();
         } else {
             bestCharX0 = bestCharW > 0 ? medianOffset(vValleys, bestCharW)
                     : houghBestPeriod(accX, minW, numCharW)[1];
         }
         // Filter: keep only valleys on the resolved periodic grid.
         int[] vValleysFiltered = filterValleys(vValleys, bestCharW, bestCharX0);
-        if (vValleysFiltered.length >= 2 && !forceCharX0.get()) {
+        if (vValleysFiltered.length >= 2 && !settings.forceCharX0.get()) {
             bestCharX0 = medianOffset(vValleysFiltered, bestCharW);
         }
 
@@ -312,19 +245,6 @@ public class GridDetectorProcessor {
     // -------------------------------------------------------------------------
 
     /**
-     * Primary period estimator: uses the diff-histogram directly.
-     *
-     * 1. Find the modal bin (most frequent gap size).
-     * 2. Collect all bins within ±25% of the modal value.
-     * 3. Return their weighted mean (weighted by bin count), rounded to int.
-     *
-     * This is O(range) and does not suffer from the tolerance-bias of
-     * bestFitPeriod: the weighted mean naturally pulls toward the true
-     * fundamental frequency even when a few gaps are 1-2px off.
-     *
-     * Returns 0 if fewer than 2 total votes exist.
-     */
-    /**
      * Best period estimate from a set of valley positions.
      *
      * Primary: if ≥ 2 valleys, use (last - first) / (count - 1) — the span
@@ -375,10 +295,6 @@ public class GridDetectorProcessor {
      * some grid position  {@code offset + N × period}  (N integer ≥ 0).
      * Tolerance is  max(1, period/6)  — same relative tolerance used in
      * {@link #bestFitPeriod}.
-     * <p>
-     * The filtered set is stored in {@code GridDetectionResult} as
-     * {@code hValleysFiltered} / {@code vValleysFiltered} and is what the UI
-     * overlays and summary labels display.
      */
     static int[] filterValleys(int[] valleys, double period, double offset) {
         if (valleys.length == 0 || period <= 0) return valleys;
@@ -425,7 +341,7 @@ public class GridDetectorProcessor {
         float bestScore = -1;
         int   bestT     = 0;
         for (int T = minT; T <= maxT; T++) {
-            int tol = Math.max(1, T / 6);   // relative tolerance — fairer across T values
+            int tol = Math.max(1, T / 6);
             int bestInliers = 0;
             for (int vi : valleys) {
                 int o = vi % T;

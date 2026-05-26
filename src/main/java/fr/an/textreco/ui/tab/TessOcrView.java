@@ -1,6 +1,6 @@
 package fr.an.textreco.ui.tab;
 
-import fr.an.textreco.ui.ProcessingPipeline;
+import fr.an.textreco.model.ProcessingContext;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -19,10 +19,10 @@ public class TessOcrView {
     @Getter
     private final BorderPane root = new BorderPane();
 
-    private final TextArea textArea   = new TextArea();
-    private final Label statusLabel   = new Label("OCR disabled.");
+    private final TextArea textArea    = new TextArea();
+    private final Label    statusLabel = new Label("OCR disabled.");
 
-    public TessOcrView(ProcessingPipeline pipeline) {
+    public TessOcrView(ProcessingContext context) {
         textArea.setEditable(false);
         textArea.setWrapText(true);
         textArea.setFont(Font.font("Monospaced", 13));
@@ -33,11 +33,11 @@ public class TessOcrView {
 
         CheckBox enableBox = new CheckBox("Enable OCR every frame");
         enableBox.setStyle("-fx-text-fill: #cccccc;");
-        enableBox.selectedProperty().bindBidirectional(pipeline.getOcrEnabledProperty());
+        enableBox.selectedProperty().bindBidirectional(context.ocrEnabledProperty);
 
         Button runOnceBtn = new Button("Run once");
         runOnceBtn.setStyle("-fx-background-color: #3a5a3a; -fx-text-fill: #dddddd;");
-        runOnceBtn.setOnAction(e -> pipeline.requestOcrOnce());
+        runOnceBtn.setOnAction(e -> context.requestOcrOnce());
 
         HBox toolbar = new HBox(12, enableBox, runOnceBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
@@ -50,7 +50,7 @@ public class TessOcrView {
         root.setCenter(textArea);
         root.setStyle("-fx-background-color: #1e1e1e;");
 
-        pipeline.getTessOcrProperty().addListener((obs, oldVal, newVal) -> {
+        context.tessOcrProperty.addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 textArea.setText(newVal);
             } else {
@@ -59,11 +59,11 @@ public class TessOcrView {
             }
         });
 
-        pipeline.getFrameStatsProperty().addListener((obs, oldVal, s) -> {
+        context.frameStatsProperty.addListener((obs, oldVal, s) -> {
             if (s == null) return;
             long ms = s.tessOcrMs();
             if (ms >= 0) {
-                String txt = pipeline.getTessOcrProperty().get();
+                String txt = context.tessOcrProperty.get();
                 int chars = txt == null ? 0 : txt.length();
                 statusLabel.setText("Last OCR: " + ms + " ms  (" + chars + " chars)");
             }

@@ -10,8 +10,8 @@ import org.opencv.imgproc.Imgproc;
 public class PerspectiveTransformProcessor implements FrameProcessor {
 
     // owned scratch state
-    private final FrameData        frame = new FrameData();
-    private final ProcessingContext ctx   = new ProcessingContext();
+    private final FrameData      frame = new FrameData();
+    private final ScratchContext ctx   = new ScratchContext();
 
     private volatile int outputWidth  = 640;
     private volatile int outputHeight = 480;
@@ -43,7 +43,7 @@ public class PerspectiveTransformProcessor implements FrameProcessor {
     public double[] getSrcYRel() { return srcYRel.clone(); }
 
     @Override
-    public void process(FrameData frame, ProcessingContext ctx) {
+    public void process(FrameData frame, ScratchContext ctx) {
         int w = frame.raw.cols();
         int h = frame.raw.rows();
         if (w == 0 || h == 0) return;

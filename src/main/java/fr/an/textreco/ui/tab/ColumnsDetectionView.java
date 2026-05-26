@@ -2,10 +2,10 @@ package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.PreProcessingResult;
+import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.CharTemplateClassifier;
-import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -36,11 +36,11 @@ public class ColumnsDetectionView {
     private final VBox root = new VBox(8);
 
     // --- controls ---
-    private final Slider lineSlider   = new Slider(0, 0, 0);
-    private final Label  lineValLabel = monoLabel("—");
-    private final Slider colSlider    = new Slider(0, 0, 0);
-    private final Label  colValLabel  = monoLabel("—");
-    private final Slider offsetSlider = new Slider(-50, 50, 0);
+    private final Slider lineSlider     = new Slider(0, 0, 0);
+    private final Label  lineValLabel   = monoLabel("—");
+    private final Slider colSlider      = new Slider(0, 0, 0);
+    private final Label  colValLabel    = monoLabel("—");
+    private final Slider offsetSlider   = new Slider(-50, 50, 0);
     private final Label  offsetValLabel = monoLabel("0");
 
     // --- line image + column grid overlay ---
@@ -51,24 +51,27 @@ public class ColumnsDetectionView {
     private final Canvas histCanvas = new Canvas(HIST_W, HIST_H);
 
     // --- zoomed char crop ---
-    private final ImageView charView       = new ImageView();
-    private final Label     infoLabel      = monoLabel("");
+    private final ImageView charView        = new ImageView();
+    private final Label     infoLabel       = monoLabel("");
     private final Label     classifiedLabel = monoLabel("");
+    private final Label     huMomentsLabel  = monoLabel("");
 
     // --- state ---
-    private TextLineExtractionResult lastResult   = null;
-    private GridDetectionResult      lastGrid     = null;
-    private PreProcessingResult      lastPreProc  = null;
-    private int[]                    colStarts    = new int[0];
-    private int                      charWidth    = 0;
+    private TextLineExtractionResult lastResult  = null;
+    private GridDetectionResult      lastGrid    = null;
+    private PreProcessingResult      lastPreProc = null;
+    private int[]                    colStarts   = new int[0];
+    private int                      charWidth   = 0;
 
     private final CharTemplateClassifier classifier;
 
-    public ColumnsDetectionView(ProcessingPipeline pipeline) {
-        this.classifier = pipeline.getCharClassifier();
-        pipeline.getTextLinesProperty()    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
-        pipeline.getGridDetectionProperty().addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
-        pipeline.getPreProcessingProperty().addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
+    public ColumnsDetectionView(ProcessingContext context,
+                                CharTemplateClassifier classifier) {
+        this.classifier = classifier;
+        context.textLinesProperty    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
+        context.gridDetectionProperty.addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
+        context.preProcessingProperty.addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
+
         lineView.setPreserveRatio(true);
         lineView.setFitWidth(LINE_VIEW_W);
         lineView.setFitHeight(LINE_VIEW_H);
@@ -119,10 +122,12 @@ public class ColumnsDetectionView {
         lineStack.setAlignment(Pos.TOP_LEFT);
         lineStack.setMaxSize(LINE_VIEW_W, LINE_VIEW_H);
 
-        classifiedLabel.setFont(javafx.scene.text.Font.font("Monospaced", javafx.scene.text.FontWeight.BOLD, 36));
+        classifiedLabel.setFont(Font.font("Monospaced", FontWeight.BOLD, 36));
         classifiedLabel.setStyle("-fx-text-fill: #88ff88; -fx-font-family: monospace;");
 
-        VBox charPanel = panel("Char Crop", new VBox(4, charView, classifiedLabel));
+        huMomentsLabel.setStyle("-fx-text-fill: #aaddff; -fx-font-family: monospace; -fx-font-size: 11;");
+
+        VBox charPanel = panel("Char Crop", new VBox(4, charView, classifiedLabel, huMomentsLabel));
         VBox infoPanel = panel("Info", infoLabel);
 
         HBox bottomRow = new HBox(12, charPanel, infoPanel);
@@ -138,7 +143,7 @@ public class ColumnsDetectionView {
     }
 
     // -------------------------------------------------------------------------
-    // public update
+    // update handlers
     // -------------------------------------------------------------------------
 
     private void onResult(TextLineExtractionResult result) {
@@ -155,7 +160,7 @@ public class ColumnsDetectionView {
     }
 
     // -------------------------------------------------------------------------
-    // column detection from line image
+    // column detection from grid
     // -------------------------------------------------------------------------
 
     private void onGridOrPreProc() {
@@ -201,9 +206,9 @@ public class ColumnsDetectionView {
         gc.fillRect(0, 0, HIST_W, HIST_H);
         if (lastPreProc == null) return;
 
-        float[] sums = lastPreProc.vColSums();
+        float[] sums    = lastPreProc.vColSums();
         int[]   valleys = lastPreProc.vValleys();
-        int     fw  = lastPreProc.frameWidth();
+        int     fw      = lastPreProc.frameWidth();
         if (sums == null || sums.length == 0 || fw == 0) return;
 
         double scaleX = HIST_W / (double) fw;
@@ -226,7 +231,7 @@ public class ColumnsDetectionView {
         gc.setLineWidth(0.8);
         gc.strokeLine(0, vThreshY, HIST_W, vThreshY);
 
-        // valley markers — bright amber verticals (from PreProcessingResult)
+        // valley markers — bright amber verticals
         if (valleys != null) {
             gc.setStroke(Color.rgb(255, 220, 0, 0.9));
             gc.setLineWidth(1.2);
@@ -276,6 +281,8 @@ public class ColumnsDetectionView {
 
         if (lineImg == null || lineImg.getWidth() == 0) {
             charView.setImage(null);
+            classifiedLabel.setText("");
+            huMomentsLabel.setText("");
             infoLabel.setText("No image for line " + lineIdx);
             return;
         }
@@ -329,11 +336,13 @@ public class ColumnsDetectionView {
             if (cropW > 0 && imgH > 0) {
                 WritableImage cropImg = new WritableImage(lineImg.getPixelReader(), cropX, 0, cropW, imgH);
                 charView.setImage(cropImg);
-                // Classify the crop
+                // Classify the crop and display Hu moments
                 org.opencv.core.Mat greyMat = fr.an.textreco.util.FxImageUtils.writableImageToGreyMat(cropImg);
                 try {
                     CharTemplateClassifier.Result r = classifier.classify(greyMat);
                     classifiedLabel.setText(r.toString());
+                    double[] hu = CharTemplateClassifier.computeHuMoments(greyMat);
+                    huMomentsLabel.setText(formatHuMoments(hu));
                 } finally {
                     greyMat.release();
                 }
@@ -349,6 +358,7 @@ public class ColumnsDetectionView {
         } else {
             charView.setImage(null);
             classifiedLabel.setText("");
+            huMomentsLabel.setText("");
             infoLabel.setText(String.format(
                     "Line %d  y=%d–%d  h=%dpx%n%d columns detected  charWidth=%dpx",
                     lineIdx, line.rowStart(), line.rowEnd(), line.height(),
@@ -394,5 +404,25 @@ public class ColumnsDetectionView {
         HBox b = new HBox(8, nodes);
         b.setAlignment(Pos.CENTER_LEFT);
         return b;
+    }
+
+    /**
+     * Formats 7 log-scaled Hu moments as a compact multi-line string, e.g.:
+     * <pre>
+     * Hu moments (log-scaled):
+     *  h1= -1.234  h2= -3.456
+     *  h3= -5.678  h4= -7.890
+     *  h5=-12.345  h6= -8.765
+     *  h7= -9.012
+     * </pre>
+     */
+    private static String formatHuMoments(double[] hu) {
+        if (hu == null || hu.length < 7) return "Hu: n/a";
+        StringBuilder sb = new StringBuilder("Hu moments (log-scaled):\n");
+        for (int i = 0; i < 7; i++) {
+            sb.append(String.format(" h%d=%8.3f", i + 1, hu[i]));
+            if (i % 2 == 1) sb.append('\n');
+        }
+        return sb.toString().stripTrailing();
     }
 }

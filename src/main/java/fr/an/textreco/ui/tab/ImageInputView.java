@@ -1,6 +1,7 @@
 package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.CameraDevice;
+import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.CameraCapture;
 import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.application.Platform;
@@ -33,16 +34,16 @@ public class ImageInputView {
     private final ImageView rawImageView       = new ImageView();
     private final ImageView processedImageView = new ImageView();
 
-    public ImageInputView(ProcessingPipeline pipeline) {
+    public ImageInputView(ProcessingContext context, ProcessingPipeline pipeline) {
         configureImageView(rawImageView);
         configureImageView(processedImageView);
 
-        rawImageView.imageProperty().bind(pipeline.getRawImageProperty());
-        pipeline.getPreProcessingProperty().addListener((obs, o, r) -> {
+        rawImageView.imageProperty().bind(context.rawImageProperty);
+        context.preProcessingProperty.addListener((obs, o, r) -> {
             if (r != null) processedImageView.setImage(r.binaryImage());
         });
 
-        HBox toolbar = buildToolbar(pipeline);
+        HBox toolbar = buildToolbar(context, pipeline);
 
         HBox images = new HBox(8,
                 buildPanel("Camera",    rawImageView),
@@ -54,7 +55,7 @@ public class ImageInputView {
         root.setStyle("-fx-background-color: #1e1e1e;");
     }
 
-    private HBox buildToolbar(ProcessingPipeline pipeline) {
+    private HBox buildToolbar(ProcessingContext context, ProcessingPipeline pipeline) {
         // --- Camera selector ---
         ComboBox<CameraDevice> cameraCombo = new ComboBox<>();
         cameraCombo.setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd; -fx-border-color: #555; -fx-border-width: 1;");
@@ -88,7 +89,7 @@ public class ImageInputView {
                 CameraDevice preferred = found.get(found.size() - 1);
                 cameraCombo.setValue(preferred);
                 // Don't switch to camera if a file is already loaded and frozen
-                if (!pipeline.getFrozenProperty().get()) {
+                if (!context.inputSource.isFrozen()) {
                     pipeline.selectCamera(preferred.index());
                 }
             });
@@ -97,7 +98,7 @@ public class ImageInputView {
         probeThread.start();
 
         cameraCombo.setOnAction(e -> {
-            if (pipeline.getFrozenProperty().get()) {
+            if (context.inputSource.isFrozen()) {
                 return; // ignore camera changes while frozen
             }
             CameraDevice selected = cameraCombo.getValue();
@@ -124,8 +125,8 @@ public class ImageInputView {
         // --- Freeze / Resume toggle ---
         ToggleButton freezeBtn = new ToggleButton("Freeze");
         styleToggleButton(freezeBtn);
-        // keep button state in sync with the service (e.g. after loadImageFile auto-freezes)
-        pipeline.getFrozenProperty().addListener((obs, o, frozen) -> {
+        // keep button state in sync with the model (e.g. after loadImageFile auto-freezes)
+        context.inputSource.frozenProperty().addListener((obs, o, frozen) -> {
             freezeBtn.setSelected(frozen);
             freezeBtn.setText(frozen ? "Resume" : "Freeze");
         });
@@ -184,5 +185,4 @@ public class ImageInputView {
                         ? "-fx-background-color: #7a4a00; -fx-text-fill: #ffdd88; -fx-border-color: #aa7700; -fx-border-width: 1;"
                         : "-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd; -fx-border-color: #555; -fx-border-width: 1;"));
     }
-
 }

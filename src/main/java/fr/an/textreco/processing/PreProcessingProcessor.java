@@ -3,11 +3,10 @@ package fr.an.textreco.processing;
 import fr.an.textreco.model.AppSettings;
 import fr.an.textreco.model.BinarizationMethod;
 import fr.an.textreco.model.PreProcessingResult;
+import fr.an.textreco.model.PreProcessingSettings;
 import fr.an.textreco.util.FxImageUtils;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleObjectProperty;
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;
 
@@ -21,16 +20,8 @@ import org.opencv.imgproc.Imgproc;
  */
 public class PreProcessingProcessor {
 
-    // binarisation — JavaFX properties, readable from background thread via .get()
-    private final ObjectProperty<BinarizationMethod> binarizationMethod =
-            new SimpleObjectProperty<>(BinarizationMethod.TOPHAT);
-    private final IntegerProperty tophatRadius    = new SimpleIntegerProperty(12);
-    private final IntegerProperty tophatThreshold = new SimpleIntegerProperty(20);
-    private final IntegerProperty adaptiveBlock   = new SimpleIntegerProperty(31);
-    private final IntegerProperty adaptiveC       = new SimpleIntegerProperty(10);
-    private final IntegerProperty seHalfLen       = new SimpleIntegerProperty(7);
-
-    private final AppSettings appSettings;
+    private final PreProcessingSettings settings;
+    private final AppSettings           appSettings;
 
     // scratch Mats — binarisation pipeline
     private final Mat gray      = new Mat();
@@ -78,33 +69,18 @@ public class PreProcessingProcessor {
     // scratch BGR wrapper for single-channel → BGR conversion before ImageBuffer
     private final Mat bgrTmp = new Mat();
 
-    public PreProcessingProcessor(AppSettings appSettings) {
+    public PreProcessingProcessor(PreProcessingSettings settings, AppSettings appSettings) {
+        this.settings    = settings;
         this.appSettings = appSettings;
     }
 
-    public ObjectProperty<BinarizationMethod> binarizationMethodProperty() { return binarizationMethod; }
-    public BinarizationMethod getBinarizationMethod()      { return binarizationMethod.get(); }
-    public void setBinarizationMethod(BinarizationMethod m){ binarizationMethod.set(m); }
-
-    public IntegerProperty tophatRadiusProperty()          { return tophatRadius; }
-    public int  getTophatRadius()                          { return tophatRadius.get(); }
-    public void setTophatRadius(int r)                     { tophatRadius.set(r); }
-
-    public IntegerProperty tophatThresholdProperty()       { return tophatThreshold; }
-    public int  getTophatThreshold()                       { return tophatThreshold.get(); }
-    public void setTophatThreshold(int t)                  { tophatThreshold.set(t); }
-
-    public IntegerProperty adaptiveBlockProperty()         { return adaptiveBlock; }
-    public int  getAdaptiveBlock()                         { return adaptiveBlock.get(); }
-    public void setAdaptiveBlock(int b)                    { adaptiveBlock.set(b); }
-
-    public IntegerProperty adaptiveCProperty()             { return adaptiveC; }
-    public int  getAdaptiveC()                             { return adaptiveC.get(); }
-    public void setAdaptiveC(int c)                        { adaptiveC.set(c); }
-
-    public IntegerProperty seHalfLenProperty()             { return seHalfLen; }
-    public int  getSeHalfLen()                             { return seHalfLen.get(); }
-    public void setSeHalfLen(int halfLen)                  { seHalfLen.set(halfLen); }
+    // Delegation accessors — kept for backward-compat; views should prefer settings.* directly
+    public ObjectProperty<BinarizationMethod> binarizationMethodProperty() { return settings.binarizationMethod; }
+    public IntegerProperty tophatRadiusProperty()    { return settings.tophatRadius; }
+    public IntegerProperty tophatThresholdProperty() { return settings.tophatThreshold; }
+    public IntegerProperty adaptiveBlockProperty()   { return settings.adaptiveBlock; }
+    public IntegerProperty adaptiveCProperty()       { return settings.adaptiveC; }
+    public IntegerProperty seHalfLenProperty()       { return settings.seHalfLen; }
 
     public PreProcessingResult process(Mat warpedBgr) {
         int w = warpedBgr.cols();
@@ -113,7 +89,7 @@ public class PreProcessingProcessor {
 
         Imgproc.cvtColor(warpedBgr, gray, Imgproc.COLOR_BGR2GRAY);
 
-        switch (binarizationMethod.get()) {
+        switch (settings.binarizationMethod.get()) {
             case TOPHAT   -> binarizeTophat();
             case ADAPTIVE -> binarizeAdaptive();
             case OTSU     -> binarizeOtsu();
@@ -173,7 +149,7 @@ public class PreProcessingProcessor {
     // -------------------------------------------------------------------------
 
     private void binarizeTophat() {
-        int r = tophatRadius.get();
+        int r = settings.tophatRadius.get();
         if (r != lastTophatRadius) {
             lastTophatRadius = r;
             tophatSE.release();
@@ -182,15 +158,15 @@ public class PreProcessingProcessor {
         }
         int op = appSettings.isDarkTheme() ? Imgproc.MORPH_TOPHAT : Imgproc.MORPH_BLACKHAT;
         Imgproc.morphologyEx(gray, tophat, op, tophatSE);
-        Imgproc.threshold(tophat, binary, tophatThreshold.get(), 255, Imgproc.THRESH_BINARY);
+        Imgproc.threshold(tophat, binary, settings.tophatThreshold.get(), 255, Imgproc.THRESH_BINARY);
     }
 
     private void binarizeAdaptive() {
-        int block = adaptiveBlock.get() | 1;
+        int block = settings.adaptiveBlock.get() | 1;
         Imgproc.adaptiveThreshold(gray, binary, 255,
                 Imgproc.ADAPTIVE_THRESH_MEAN_C,
                 appSettings.isDarkTheme() ? Imgproc.THRESH_BINARY_INV : Imgproc.THRESH_BINARY,
-                block, adaptiveC.get());
+                block, settings.adaptiveC.get());
     }
 
     private void binarizeOtsu() {
@@ -205,7 +181,7 @@ public class PreProcessingProcessor {
     }
 
     private void rebuildKernelsIfNeeded() {
-        int hl = seHalfLen.get();
+        int hl = settings.seHalfLen.get();
         if (hl == lastSeHalfLen) return;
         lastSeHalfLen = hl;
         int len = hl * 2 + 1;

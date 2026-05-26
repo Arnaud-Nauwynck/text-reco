@@ -1,10 +1,7 @@
 package fr.an.textreco.ui.tab;
 
-import fr.an.textreco.model.AppSettings;
 import fr.an.textreco.model.BinarizationMethod;
-import fr.an.textreco.model.EdgeDetectorSettings;
-import fr.an.textreco.processing.GridDetectorProcessor;
-import fr.an.textreco.processing.PreProcessingProcessor;
+import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.IntegerProperty;
@@ -34,9 +31,8 @@ public class SettingsView {
     @Getter private final Spinner<Integer> captureWidthSpinner  = new Spinner<>(320, 3840, 640, 160);
     @Getter private final Spinner<Integer> captureHeightSpinner = new Spinner<>(240, 2160, 480, 120);
 
-    public SettingsView(AppSettings appSettings, EdgeDetectorSettings edgeSettings,
-                        PreProcessingProcessor preProcessor, TextLineExtractorProcessor lineExtractor,
-                        GridDetectorProcessor gridDetector) {
+    public SettingsView(ProcessingContext context,
+                        TextLineExtractorProcessor lineExtractor) {
 
         root.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         root.setStyle("-fx-background-color: #1e1e1e;");
@@ -44,10 +40,10 @@ public class SettingsView {
 
         root.getTabs().addAll(
                 buildCameraTab(),
-                buildProcessingTab(appSettings),
-                buildCannyTab(edgeSettings),
-                buildPreProcessingTab(preProcessor),
-                buildLineDetectionTab(lineExtractor, gridDetector));
+                buildProcessingTab(context),
+                buildCannyTab(context),
+                buildPreProcessingTab(context),
+                buildLineDetectionTab(lineExtractor, context));
     }
 
     // -------------------------------------------------------------------------
@@ -69,23 +65,23 @@ public class SettingsView {
         return subTab("Camera", padded(grid));
     }
 
-    private Tab buildProcessingTab(AppSettings appSettings) {
+    private Tab buildProcessingTab(ProcessingContext context) {
         CheckBox darkThemeBox = new CheckBox("Dark theme  (white text on black background)");
         darkThemeBox.setStyle("-fx-text-fill: #cccccc;");
-        darkThemeBox.selectedProperty().bindBidirectional(appSettings.darkThemeProperty());
+        darkThemeBox.selectedProperty().bindBidirectional(context.appSettings.darkThemeProperty());
         return subTab("Processing", padded(darkThemeBox));
     }
 
-    private Tab buildCannyTab(EdgeDetectorSettings edgeSettings) {
+    private Tab buildCannyTab(ProcessingContext context) {
         Label val1 = monoLabel("0");
         Slider s1  = slider(0, 300, 50);
-        s1.valueProperty().bindBidirectional(edgeSettings.cannyThreshold1Property());
-        val1.textProperty().bind(Bindings.format("%.0f", edgeSettings.cannyThreshold1Property()));
+        s1.valueProperty().bindBidirectional(context.edgeDetectorSettings.cannyThreshold1Property());
+        val1.textProperty().bind(Bindings.format("%.0f", context.edgeDetectorSettings.cannyThreshold1Property()));
 
         Label val2 = monoLabel("0");
         Slider s2  = slider(0, 500, 50);
-        s2.valueProperty().bindBidirectional(edgeSettings.cannyThreshold2Property());
-        val2.textProperty().bind(Bindings.format("%.0f", edgeSettings.cannyThreshold2Property()));
+        s2.valueProperty().bindBidirectional(context.edgeDetectorSettings.cannyThreshold2Property());
+        val2.textProperty().bind(Bindings.format("%.0f", context.edgeDetectorSettings.cannyThreshold2Property()));
 
         VBox box = new VBox(6,
                 hrow(styledLabel("Threshold 1 (low):"),  s1, val1),
@@ -93,23 +89,24 @@ public class SettingsView {
         return subTab("Canny", padded(box));
     }
 
-    private Tab buildPreProcessingTab(PreProcessingProcessor preProcessor) {
+    private Tab buildPreProcessingTab(ProcessingContext context) {
+        var ps = context.preProcessingSettings;
         ComboBox<BinarizationMethod> methodCombo = new ComboBox<>(
                 FXCollections.observableArrayList(BinarizationMethod.values()));
         methodCombo.setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd;");
-        methodCombo.valueProperty().bindBidirectional(preProcessor.binarizationMethodProperty());
+        methodCombo.valueProperty().bindBidirectional(ps.binarizationMethod);
 
         Label thRadVal = monoLabel("0");
         Slider thRadSlider = slider(1, 40, 10);
-        bindIntSlider(thRadSlider, thRadVal, preProcessor.tophatRadiusProperty());
+        bindIntSlider(thRadSlider, thRadVal, ps.tophatRadius);
 
         Label thThrVal = monoLabel("0");
         Slider thThrSlider = slider(1, 100, 20);
-        bindIntSlider(thThrSlider, thThrVal, preProcessor.tophatThresholdProperty());
+        bindIntSlider(thThrSlider, thThrVal, ps.tophatThreshold);
 
         Label adaptBlockVal = monoLabel("0");
         Slider adaptBlockSlider = slider(3, 99, 20);
-        bindIntSlider(adaptBlockSlider, adaptBlockVal, preProcessor.adaptiveBlockProperty());
+        bindIntSlider(adaptBlockSlider, adaptBlockVal, ps.adaptiveBlock);
 
         VBox tophatParams = new VBox(4,
                 hrow(styledLabel("Top-hat radius:"),    thRadSlider,      thRadVal),
@@ -124,12 +121,12 @@ public class SettingsView {
             adaptiveParams.setVisible(m == BinarizationMethod.ADAPTIVE);
             adaptiveParams.setManaged(m == BinarizationMethod.ADAPTIVE);
         };
-        preProcessor.binarizationMethodProperty().addListener((obs, o, n) -> updateVisibility.run());
+        ps.binarizationMethod.addListener((obs, o, n) -> updateVisibility.run());
         updateVisibility.run();
 
         Label seVal = monoLabel("0");
         Slider seSlider = slider(1, 20, 5);
-        bindIntSlider(seSlider, seVal, preProcessor.seHalfLenProperty());
+        bindIntSlider(seSlider, seVal, ps.seHalfLen);
 
         VBox box = new VBox(6,
                 hrow(styledLabel("Binarization:"), methodCombo),
@@ -140,16 +137,17 @@ public class SettingsView {
     }
 
     private Tab buildLineDetectionTab(TextLineExtractorProcessor lineExtractor,
-                                      GridDetectorProcessor gridDetector) {
-        Spinner<Integer> minLineHSp = intSpinner(4,  120, gridDetector.getMinLineH());
-        Spinner<Integer> maxLineHSp = intSpinner(4,  120, gridDetector.getMaxLineH());
-        Spinner<Integer> minCharWSp = intSpinner(2,  80,  gridDetector.getMinCharW());
-        Spinner<Integer> maxCharWSp = intSpinner(2,  80,  gridDetector.getMaxCharW());
+                                      ProcessingContext context) {
+        var gridDetectorSettings = context.gridDetectorSettings;
+        Spinner<Integer> minLineHSp = intSpinner(4,  120, gridDetectorSettings.minLineH.get());
+        Spinner<Integer> maxLineHSp = intSpinner(4,  120, gridDetectorSettings.maxLineH.get());
+        Spinner<Integer> minCharWSp = intSpinner(2,  80,  gridDetectorSettings.minCharW.get());
+        Spinner<Integer> maxCharWSp = intSpinner(2,  80,  gridDetectorSettings.maxCharW.get());
 
-        bindIntSpinner(minLineHSp, gridDetector.minLineHProperty());
-        bindIntSpinner(maxLineHSp, gridDetector.maxLineHProperty());
-        bindIntSpinner(minCharWSp, gridDetector.minCharWProperty());
-        bindIntSpinner(maxCharWSp, gridDetector.maxCharWProperty());
+        bindIntSpinner(minLineHSp, gridDetectorSettings.minLineH);
+        bindIntSpinner(maxLineHSp, gridDetectorSettings.maxLineH);
+        bindIntSpinner(minCharWSp, gridDetectorSettings.minCharW);
+        bindIntSpinner(maxCharWSp, gridDetectorSettings.maxCharW);
 
         VBox box = new VBox(8,
                 hrow(styledLabel("Line H min:"), minLineHSp, styledLabel("px"),

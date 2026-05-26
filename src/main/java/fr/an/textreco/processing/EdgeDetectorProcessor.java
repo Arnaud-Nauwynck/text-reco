@@ -12,7 +12,7 @@ public class EdgeDetectorProcessor implements FrameProcessor {
 
     // owned scratch state
     private final FrameData        frame = new FrameData();
-    private final ProcessingContext ctx   = new ProcessingContext();
+    private final ScratchContext   ctx   = new ScratchContext();
 
     public EdgeDetectorProcessor(EdgeDetectorSettings settings) {
         this.settings = settings;
@@ -31,7 +31,7 @@ public class EdgeDetectorProcessor implements FrameProcessor {
 
     /** Legacy FrameProcessor interface — still used by PerspectiveTransformProcessor indirectly. */
     @Override
-    public void process(FrameData f, ProcessingContext c) {
+    public void process(FrameData f, ScratchContext c) {
         Imgproc.cvtColor(f.raw, f.gray, Imgproc.COLOR_BGR2GRAY);
         Imgproc.Canny(f.gray, f.processed,
                 settings.getCannyThreshold1(), settings.getCannyThreshold2());

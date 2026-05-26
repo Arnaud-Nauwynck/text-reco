@@ -2,7 +2,12 @@ package fr.an.textreco.processing;
 
 import org.opencv.core.Mat;
 
-public class ProcessingContext {
+/**
+ * Scratch OpenCV Mats shared within a single processor.
+ * Not to be confused with {@link fr.an.textreco.model.ProcessingContext}, which
+ * is the MVC Model holding all observable pipeline outputs.
+ */
+public class ScratchContext {
 
     public final Mat temp1 = new Mat();
     public final Mat temp2 = new Mat();

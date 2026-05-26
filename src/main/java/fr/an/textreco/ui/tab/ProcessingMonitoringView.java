@@ -1,7 +1,7 @@
 package fr.an.textreco.ui.tab;
 
 import fr.an.textreco.model.FrameStats;
-import fr.an.textreco.ui.ProcessingPipeline;
+import fr.an.textreco.model.ProcessingContext;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
@@ -30,8 +30,8 @@ public class ProcessingMonitoringView {
     // exponential moving average for FPS smoothing (α = 0.1)
     private double smoothFps = 0;
 
-    public ProcessingMonitoringView(ProcessingPipeline pipeline) {
-        pipeline.getFrameStatsProperty().addListener((obs, o, s) -> { if (s != null) onStats(s); });
+    public ProcessingMonitoringView(ProcessingContext context) {
+        context.frameStatsProperty.addListener((obs, o, s) -> { if (s != null) onStats(s); });
         root.setPadding(new Insets(16));
         root.setStyle("-fx-background-color: #1e1e1e;");
 
@@ -66,13 +66,13 @@ public class ProcessingMonitoringView {
 
         resolutionLabel .setText(s.width() + " × " + s.height());
         fpsLabel        .setText(String.format("%.1f fps", smoothFps));
-        totalLabel      .setText(s.totalMs()       + " ms");
-        captureLabel    .setText(s.captureMs()     + " ms");
-        rawConvertLabel .setText(s.rawConvertMs()  + " ms");
-        edgeProcLabel   .setText(s.edgeProcessMs() + " ms");
-        edgeConvLabel   .setText(s.edgeConvertMs() + " ms");
-        perspProcLabel  .setText(s.perspProcessMs()+ " ms");
-        perspConvLabel  .setText(s.perspConvertMs()+ " ms");
+        totalLabel      .setText(s.totalMs()        + " ms");
+        captureLabel    .setText(s.captureMs()      + " ms");
+        rawConvertLabel .setText(s.rawConvertMs()   + " ms");
+        edgeProcLabel   .setText(s.edgeProcessMs()  + " ms");
+        edgeConvLabel   .setText(s.edgeConvertMs()  + " ms");
+        perspProcLabel  .setText(s.perspProcessMs() + " ms");
+        perspConvLabel  .setText(s.perspConvertMs() + " ms");
         tessOcrLabel    .setText(s.tessOcrMs() < 0 ? "—" : s.tessOcrMs() + " ms");
     }
 
@@ -94,5 +94,4 @@ public class ProcessingMonitoringView {
         l.setStyle("-fx-text-fill: #eeeeee; -fx-font-family: monospace;");
         return l;
     }
-
 }

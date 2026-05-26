@@ -1,10 +1,9 @@
 package fr.an.textreco.ui;
 
-import fr.an.textreco.model.AppSettings;
-import fr.an.textreco.model.EdgeDetectorSettings;
+import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
-import fr.an.textreco.processing.PreProcessingProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
+import fr.an.textreco.ui.tab.CharFeaturesView;
 import fr.an.textreco.ui.tab.ColumnsDetectionView;
 import fr.an.textreco.ui.tab.ImageInputView;
 import fr.an.textreco.ui.tab.LineAreasDetectionView;
@@ -22,28 +21,27 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
+@Getter
 public class TextRecoView {
 
-    @Getter
     private final BorderPane root = new BorderPane();
 
-    public TextRecoView(ProcessingPipeline pipeline,
-                        AppSettings appSettings,
-                        EdgeDetectorSettings edgeSettings,
+    public TextRecoView(ProcessingContext context,
+                        ProcessingPipeline pipeline,
                         PerspectiveTransformProcessor perspectiveProcessor,
-                        PreProcessingProcessor preProcessingProcessor,
                         TextLineExtractorProcessor lineExtractor) {
 
         TabPane tabPane = new TabPane(
-                buildTab("Input",          new ImageInputView(pipeline).getRoot()),
-                buildTab("Perspective",    new PerspectiveTransformView(pipeline, perspectiveProcessor).getRoot()),
-                buildTab("Pre-Processing", new PreProcessingView(pipeline).getRoot()),
-                buildTab("Line Areas",     new LineAreasDetectionView(pipeline, lineExtractor).getRoot()),
-                buildTab("Columns",        new ColumnsDetectionView(pipeline).getRoot()),
-                buildTab("TessOCR",        new TessOcrView(pipeline).getRoot()),
-                buildTab("Settings",       new SettingsView(appSettings, edgeSettings, preProcessingProcessor, lineExtractor, pipeline.getGridDetector()).getRoot()),
-                buildTab("Perfs",          new ProcessingMonitoringView(pipeline).getRoot()),
-                buildTab("Results",        new ResultTextView().getRoot())
+                buildTab("Input",          new ImageInputView(context, pipeline).getRoot()),
+                buildTab("Perspective",    new PerspectiveTransformView(context, perspectiveProcessor).getRoot()),
+                buildTab("Pre-Processing", new PreProcessingView(context).getRoot()),
+                buildTab("Line Areas",     new LineAreasDetectionView(context, lineExtractor).getRoot()),
+                buildTab("Columns",        new ColumnsDetectionView(context, pipeline.getCharClassifier()).getRoot()),
+                buildTab("Char Features",  new CharFeaturesView(pipeline.getCharClassifier()).getRoot()),
+                buildTab("TessOCR",        new TessOcrView(context).getRoot()),
+                buildTab("Settings",       new SettingsView(context, lineExtractor).getRoot()),
+                buildTab("Perfs",          new ProcessingMonitoringView(context).getRoot()),
+                buildTab("Results",        new ResultTextView(context).getRoot())
         );
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setStyle("-fx-background-color: #1e1e1e;");

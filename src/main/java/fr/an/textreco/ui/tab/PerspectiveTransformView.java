@@ -1,7 +1,7 @@
 package fr.an.textreco.ui.tab;
 
+import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
-import fr.an.textreco.ui.ProcessingPipeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
@@ -34,15 +34,15 @@ public class PerspectiveTransformView {
     @Getter
     private final HBox root = new HBox(8);
 
-    private final ImageView rawView      = new ImageView();
+    private final ImageView rawView       = new ImageView();
     private final Canvas    overlayCanvas = new Canvas(DISPLAY_W, DISPLAY_H);
-    private final ImageView warpedView   = new ImageView();
+    private final ImageView warpedView    = new ImageView();
 
     // corner positions in display-pixel space; order: TL, TR, BR, BL
     private final double[] cx = {0, DISPLAY_W, DISPLAY_W, 0};
     private final double[] cy = {0, 0, DISPLAY_H, DISPLAY_H};
 
-    private final Circle[] handles = new Circle[4];
+    private final Circle[] handles      = new Circle[4];
     private final String[] cornerLabels = {"TL", "TR", "BR", "BL"};
 
     private final PerspectiveTransformProcessor processor;
@@ -53,10 +53,11 @@ public class PerspectiveTransformView {
     private double offsetX   = 0;
     private double offsetY   = 0;
 
-    public PerspectiveTransformView(ProcessingPipeline pipeline, PerspectiveTransformProcessor processor) {
+    public PerspectiveTransformView(ProcessingContext context,
+                                    PerspectiveTransformProcessor processor) {
         this.processor = processor;
-        pipeline.getRawImageProperty()        .addListener((obs, o, img) -> setRawImage(img));
-        pipeline.getPerspectiveImageProperty().addListener((obs, o, img) -> setWarpedImage(img));
+        context.rawImageProperty        .addListener((obs, o, img) -> setRawImage(img));
+        context.perspectiveImageProperty.addListener((obs, o, img) -> setWarpedImage(img));
 
         configureImageView(rawView);
         configureImageView(warpedView);
@@ -93,7 +94,6 @@ public class PerspectiveTransformView {
             c.setStrokeWidth(1.5);
             c.setCursor(Cursor.CROSSHAIR);
 
-            // drag state
             double[] dragStart = new double[2];
 
             c.setOnMousePressed(e -> {
@@ -129,7 +129,6 @@ public class PerspectiveTransformView {
         GraphicsContext gc = overlayCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, DISPLAY_W, DISPLAY_H);
 
-        // quad outline
         gc.setStroke(Color.rgb(255, 200, 0, 0.9));
         gc.setLineWidth(1.5);
         for (int i = 0; i < 4; i++) {
@@ -137,7 +136,6 @@ public class PerspectiveTransformView {
             gc.strokeLine(cx[i], cy[i], cx[j], cy[j]);
         }
 
-        // corner labels
         gc.setFill(Color.WHITE);
         gc.setFont(Font.font("System", FontWeight.BOLD, 11));
         for (int i = 0; i < 4; i++) {
@@ -172,7 +170,6 @@ public class PerspectiveTransformView {
     private void setRawImage(Image image) {
         rawView.setImage(image);
         if (image != null) {
-            // compute actual rendered bounds inside the ImageView (preserveRatio)
             double iw = image.getWidth();
             double ih = image.getHeight();
             double scale = Math.min(DISPLAY_W / iw, DISPLAY_H / ih);

@@ -10,8 +10,10 @@ public class FrameData {
 
     public final Mat processed = new Mat();
 
-    public void release() {
+    public FrameData() {
+    }
 
+    public void release() {
         raw.release();
         gray.release();
         processed.release();

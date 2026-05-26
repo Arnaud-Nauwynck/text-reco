@@ -1,7 +1,6 @@
 package fr.an.textreco.ui;
 
-import fr.an.textreco.model.AppSettings;
-import fr.an.textreco.model.EdgeDetectorSettings;
+import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.EdgeDetectorProcessor;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
 import fr.an.textreco.processing.PreProcessingProcessor;
@@ -27,26 +26,27 @@ public class TextRecoJavaFxApplication extends Application {
 
     @Override
     public void start(Stage stage) {
-        AppSettings          appSettings   = new AppSettings();
-        EdgeDetectorSettings edgeSettings  = new EdgeDetectorSettings();
+        // Model: all observable pipeline outputs + settings
+        ProcessingContext context = new ProcessingContext();
 
-        EdgeDetectorProcessor edgeDetector   = new EdgeDetectorProcessor(edgeSettings);
+        EdgeDetectorProcessor         edgeDetector   = new EdgeDetectorProcessor(context.edgeDetectorSettings);
         PerspectiveTransformProcessor perspProcessor = new PerspectiveTransformProcessor();
-        PreProcessingProcessor preProcessor   = new PreProcessingProcessor(appSettings);
+        PreProcessingProcessor        preProcessor   = new PreProcessingProcessor(context.preProcessingSettings, context.appSettings);
         TextLineExtractorProcessor    lineExtractor  = new TextLineExtractorProcessor();
 
+        // Controller: drives processors, publishes into context
         ProcessingPipeline pipeline = new ProcessingPipeline(
-                edgeDetector, perspProcessor, preProcessor, lineExtractor);
+                context, edgeDetector, perspProcessor, preProcessor, lineExtractor);
 
         File file = new File("src/test/term36-consolas-base64-bis.png");
         if (file.exists()) {
             pipeline.loadImageFile(file);
         }
 
-        // Views subscribe to pipeline properties in their own constructors.
+        // Views subscribe to Model properties in their own constructors.
         TextRecoView view = new TextRecoView(
-                pipeline, appSettings, edgeSettings,
-                perspProcessor, preProcessor, lineExtractor);
+                context, pipeline,
+                perspProcessor, lineExtractor);
 
         stage.getIcons().clear();
         stage.setScene(new Scene(view.getRoot(), 1400, 700));
