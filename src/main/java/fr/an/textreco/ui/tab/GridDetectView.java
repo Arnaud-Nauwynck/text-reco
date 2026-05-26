@@ -217,14 +217,14 @@ public class GridDetectView {
                 ? (int) Math.round(lastPreProc.frameWidth() / r.bestCharW())
                 : r.vValleysFiltered().length;
         detectedColCountLabel.setText("Cols  detected: " + detectedCols);
-        gridLabel.setText(String.format("x0=%.1f  y0=%.1f  charW=%.1f  lineH=%.1f",
+        gridLabel.setText(String.format("x0=%.2f  y0=%.2f  charW=%.2f  lineH=%.2f",
                 r.bestCharX0(), r.bestLineY0(), r.bestCharW(), r.bestLineH()));
-        lineHLabel.setText(String.format("lineH: %.1fpx  y0=%.1f", r.bestLineH(), r.bestLineY0())
+        lineHLabel.setText(String.format("lineH: %.2fpx  y0=%.2f", r.bestLineH(), r.bestLineY0())
                 + "  (" + r.hValleys().length + " valleys"
                 + (r.hValleysFiltered().length != r.hValleys().length
                         ? "  →" + r.hValleysFiltered().length + " on-grid" : "") + ")"
                 + valleySummary(r.hValleysFiltered()));
-        charWLabel.setText(String.format("charW: %.1fpx  x0=%.1f", r.bestCharW(), r.bestCharX0())
+        charWLabel.setText(String.format("charW: %.2fpx  x0=%.2f", r.bestCharW(), r.bestCharX0())
                 + "  (" + r.vValleys().length + " valleys"
                 + (r.vValleysFiltered().length != r.vValleys().length
                         ? "  →" + r.vValleysFiltered().length + " on-grid" : "") + ")"
@@ -292,7 +292,7 @@ public class GridDetectView {
             gc.strokeLine(px, 0, px, ch - 12);
             gc.setFill(Color.rgb(255, 220, 220, 0.9));
             gc.setFont(Font.font("Monospace", FontWeight.BOLD, 9));
-            gc.fillText(String.format("%s=%.1f", axisName, bestT), Math.min(px + 2, cw - 55), 10);
+            gc.fillText(String.format("%s=%.2f", axisName, bestT), Math.min(px + 2, cw - 55), 10);
         }
     }
 
@@ -326,7 +326,7 @@ public class GridDetectView {
             gc.strokeLine(px, 0, px, ch);
             gc.setFont(Font.font("Monospace", FontWeight.BOLD, 9));
             gc.setFill(Color.rgb(255, 220, 220, 0.9));
-            gc.fillText(String.format("%s=%.1f (min)", axisName, markedFrac), Math.min(px + 3, cw - 70), 10);
+            gc.fillText(String.format("%s=%.2f (min)", axisName, markedFrac), Math.min(px + 3, cw - 70), 10);
         }
     }
 
@@ -390,7 +390,7 @@ public class GridDetectView {
             // period label
             gc.setFont(Font.font("Monospace", FontWeight.BOLD, 9));
             gc.setFill(Color.rgb(255, 220, 0, 0.9));
-            gc.fillText(String.format("charW=%.1f", grid.bestCharW()), offX + 2, VHIST_H - 2);
+            gc.fillText(String.format("charW=%.2f", grid.bestCharW()), offX + 2, VHIST_H - 2);
         }
     }
 
@@ -448,7 +448,7 @@ public class GridDetectView {
             // period label
             gc.setFont(Font.font("Monospace", FontWeight.BOLD, 9));
             gc.setFill(Color.rgb(255, 220, 0, 0.9));
-            gc.fillText(String.format("H=%.1f", lastGrid.bestLineH()), 1, offY > 12 ? offY - 2 : 10);
+            gc.fillText(String.format("H=%.2f", lastGrid.bestLineH()), 1, offY > 12 ? offY - 2 : 10);
         }
 
         gc.setFont(Font.font("System", 9));
@@ -580,13 +580,13 @@ public class GridDetectView {
         Spinner<Double> s = new Spinner<>(
                 new SpinnerValueFactory.DoubleSpinnerValueFactory(min, max, initial, 0.1));
         s.setEditable(true);
-        s.setPrefWidth(80);
+        s.setPrefWidth(90);
         s.setStyle("-fx-background-color: #3a3a3a;");
         s.getEditor().setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #eeeeee; -fx-font-family: monospace;");
         ((SpinnerValueFactory.DoubleSpinnerValueFactory) s.getValueFactory())
                 .setConverter(new javafx.util.StringConverter<Double>() {
                     @Override public String toString(Double v) {
-                        return v == null ? "" : String.format(java.util.Locale.ROOT, "%.1f", v);
+                        return v == null ? "" : String.format(java.util.Locale.ROOT, "%.2f", v);
                     }
                     @Override public Double fromString(String s) {
                         if (s == null || s.isBlank()) return 0.0;
@@ -659,7 +659,7 @@ public class GridDetectView {
         if (n >= 3) sb.append(", ").append(v[n - 1]);
         sb.append("]");
         double span = (double) (v[n - 1] - v[0]) / (n - 1);
-        sb.append(String.format("  span/(n-1)=%.1f", span));
+        sb.append(String.format("  span/(n-1)=%.2f", span));
         return sb.toString();
     }
 
