@@ -21,7 +21,8 @@ import java.util.List;
  *
  *   1. Valley detection — find midpoints of sub-threshold regions in the
  *      projection histogram (open+close combined).  Each midpoint is one
- *      inter-line (or inter-char) gap.
+ *      inter-line (or inter-char) gap.  All valleys are kept, including
+ *      boundary ones (first/last char-column or line-gap edges).
  *
  *   2. Difference histogram — histogram of consecutive inter-valley gaps.
  *      The modal bin (most frequent gap size) is the best period estimate.
@@ -38,7 +39,8 @@ import java.util.List;
  *   Fallback — if fewer than 2 valleys are found the Hough-contrast method
  *   is used across the full candidate range.
  *
- * X range is constrained to [0.4, 0.7] × bestLineH after Y is resolved.
+ * X range is constrained to [0.2, 0.9] × bestLineH after Y is resolved,
+ * supporting narrow terminal fonts where charW ≈ lineH/3.
  */
 public class GridDetectorProcessor {
 
@@ -141,9 +143,9 @@ public class GridDetectorProcessor {
         maxH = Math.max(minH + 1, Math.min(maxH, h));
 
         // ---- Y axis ----
-        int[]   hValleys  = detectValleys(hRowSums, h, minH);
-        int[]   diffHistY = buildDiffHist(hValleys, minH, maxH);
-        int[]   hValleysFiltered = hValleys;
+        // First pass with minH to feed period-finding algorithms.
+        int[]   hValleysRaw = detectValleys(hRowSums, h, minH);
+        int[]   diffHistY   = buildDiffHist(hValleysRaw, minH, maxH);
 
         int numLineH = maxH - minH + 1;
         float[][] accY = buildAccumulator(hRowSums, h, minH, maxH, numLineH);
@@ -153,14 +155,20 @@ public class GridDetectorProcessor {
         if (forceLineH.get()) {
             bestLineH = forcedLineH.get();
         } else {
-            bestLineH = spanPeriod(hValleys, diffHistY, minH, maxH);
+            bestLineH = spanPeriod(hValleysRaw, diffHistY, minH, maxH);
             if (bestLineH <= 0) {
-                bestLineH = hValleys.length >= 2 ? bestFitPeriod(hValleys, h, minH, maxH) : 0;
+                bestLineH = hValleysRaw.length >= 2 ? bestFitPeriod(hValleysRaw, h, minH, maxH) : 0;
                 if (bestLineH <= 0) {
                     bestLineH = houghBestPeriod(accY, minH, numLineH)[0];
                 }
             }
         }
+        // Second pass: re-detect with minT = bestLineH so halfWin = lineH/2
+        // collapses any sub-line dips into a single clean valley per gap.
+        int[] hValleys = bestLineH > 0
+                ? detectValleys(hRowSums, h, (int) Math.round(bestLineH))
+                : hValleysRaw;
+
         if (forceLineY0.get()) {
             bestLineY0 = forcedLineY0.get();
         } else if (bestLineH > 0) {
@@ -168,17 +176,23 @@ public class GridDetectorProcessor {
         } else {
             bestLineY0 = houghBestPeriod(accY, minH, numLineH)[1];
         }
+        // Filter: keep only valleys on the resolved periodic grid.
+        int[] hValleysFiltered = filterValleys(hValleys, bestLineH, bestLineY0);
+        if (hValleysFiltered.length >= 2 && !forceLineY0.get()) {
+            bestLineY0 = medianOffset(hValleysFiltered, bestLineH);
+        }
 
-        // ---- X axis: range constrained to [0.4, 0.7] × bestLineH ----
-        int minW = Math.max(minCharW.get(), (int) Math.round(0.4 * bestLineH));
-        int maxW = Math.min(maxCharW.get(), (int) Math.round(0.7 * bestLineH));
+        // ---- X axis: range constrained to [0.2, 0.9] × bestLineH ----
+        // Terminal fonts can be narrow (charW ≈ lineH/3), so lower bound is 0.2×lineH.
+        int minW = Math.max(minCharW.get(), (int) Math.round(0.2 * bestLineH));
+        int maxW = Math.min(maxCharW.get(), (int) Math.round(0.9 * bestLineH));
         minW = Math.max(2, Math.min(minW, w / 2));
         maxW = Math.max(minW + 1, Math.min(maxW, w));
         int numCharW = maxW - minW + 1;
 
-        int[]   vValleys  = detectValleys(vColSums, w, minW);
-        int[]   diffHistX = buildDiffHist(vValleys, minW, maxW);
-        int[]   vValleysFiltered = vValleys;
+        // First pass with minW to feed period-finding algorithms.
+        int[]   vValleysRaw = detectValleys(vColSums, w, minW);
+        int[]   diffHistX   = buildDiffHist(vValleysRaw, minW, maxW);
         float[][] accX = buildAccumulator(vColSums, w, minW, maxW, numCharW);
 
         double bestCharW;
@@ -186,19 +200,30 @@ public class GridDetectorProcessor {
         if (forceCharWidth.get()) {
             bestCharW = Math.max(0.1, forcedCharWPx.get());
         } else {
-            bestCharW = spanPeriod(vValleys, diffHistX, minW, maxW);
+            bestCharW = spanPeriod(vValleysRaw, diffHistX, minW, maxW);
             if (bestCharW <= 0) {
-                bestCharW = vValleys.length >= 2 ? bestFitPeriod(vValleys, w, minW, maxW) : 0;
+                bestCharW = vValleysRaw.length >= 2 ? bestFitPeriod(vValleysRaw, w, minW, maxW) : 0;
                 if (bestCharW <= 0) {
                     bestCharW = houghBestPeriod(accX, minW, numCharW)[0];
                 }
             }
         }
+        // Second pass: re-detect with minT = bestCharW so halfWin = charW/2
+        // suppresses intra-character strokes (which are narrower than charW).
+        int[] vValleys = bestCharW > 0
+                ? detectValleys(vColSums, w, (int) Math.round(bestCharW))
+                : vValleysRaw;
+
         if (forceCharX0.get()) {
             bestCharX0 = forcedCharX0.get();
         } else {
             bestCharX0 = bestCharW > 0 ? medianOffset(vValleys, bestCharW)
                     : houghBestPeriod(accX, minW, numCharW)[1];
+        }
+        // Filter: keep only valleys on the resolved periodic grid.
+        int[] vValleysFiltered = filterValleys(vValleys, bestCharW, bestCharX0);
+        if (vValleysFiltered.length >= 2 && !forceCharX0.get()) {
+            bestCharX0 = medianOffset(vValleysFiltered, bestCharW);
         }
 
         return new GridDetectionResult(
@@ -218,6 +243,12 @@ public class GridDetectorProcessor {
      * Threshold = 25% of global max.  Two candidate local minima within
      * minT/2 of each other are merged (keep deepest) so each physical gap
      * produces exactly one valley.
+     * <p>
+     * All detected valleys are returned, including those at the boundary of
+     * the signal (first/last char columns or line gaps).  Boundary trimming
+     * is intentionally omitted so that {@link #spanPeriod} can use the full
+     * span — (last − first) / (count − 1) — for the most accurate period
+     * estimate even when text fills the frame to the edges.
      */
     static int[] detectValleys(float[] sig, int n, int minT) {
         float globalMax = 0;
@@ -254,27 +285,7 @@ public class GridDetectorProcessor {
             i = j + 1;
         }
 
-        int[] result = merged.stream().mapToInt(Integer::intValue).toArray();
-
-        // Trim boundary valleys that have no text peak on their outer side.
-        // A valley is valid only if there is a value >= thresh between it and
-        // the signal boundary (i.e. at least one text stroke outside the grid).
-        int lo = 0, hi = result.length;
-        if (hi > 0 && !hasPeakBefore(sig, result[lo], thresh))    lo++;
-        if (hi > lo && !hasPeakAfter (sig, result[hi - 1], n, thresh)) hi--;
-
-        if (lo == 0 && hi == result.length) return result;
-        return Arrays.copyOfRange(result, lo, hi);
-    }
-
-    private static boolean hasPeakBefore(float[] sig, int valley, float thresh) {
-        for (int i = 0; i < valley; i++) if (sig[i] >= thresh) return true;
-        return false;
-    }
-
-    private static boolean hasPeakAfter(float[] sig, int valley, int n, float thresh) {
-        for (int i = valley + 1; i < n; i++) if (sig[i] >= thresh) return true;
-        return false;
+        return merged.stream().mapToInt(Integer::intValue).toArray();
     }
 
     // -------------------------------------------------------------------------
@@ -353,6 +364,35 @@ public class GridDetectorProcessor {
             }
         }
         return totalWeight == 0 ? modalT : weightedSum / totalWeight;
+    }
+
+    // -------------------------------------------------------------------------
+    // Step 3b — filter valleys: keep only those on the periodic grid
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the subset of {@code valleys} that lie within {@code tol} pixels of
+     * some grid position  {@code offset + N × period}  (N integer ≥ 0).
+     * Tolerance is  max(1, period/6)  — same relative tolerance used in
+     * {@link #bestFitPeriod}.
+     * <p>
+     * The filtered set is stored in {@code GridDetectionResult} as
+     * {@code hValleysFiltered} / {@code vValleysFiltered} and is what the UI
+     * overlays and summary labels display.
+     */
+    static int[] filterValleys(int[] valleys, double period, double offset) {
+        if (valleys.length == 0 || period <= 0) return valleys;
+        int tol = Math.max(1, (int) Math.round(period / 6.0));
+        List<Integer> kept = new ArrayList<>();
+        for (int v : valleys) {
+            double shifted = ((v - offset) % period + period) % period;
+            if (shifted <= tol || shifted >= period - tol) {
+                kept.add(v);
+            }
+        }
+        // If filtering removed everything (degenerate case), fall back to raw list.
+        if (kept.isEmpty()) return valleys;
+        return kept.stream().mapToInt(Integer::intValue).toArray();
     }
 
     // -------------------------------------------------------------------------

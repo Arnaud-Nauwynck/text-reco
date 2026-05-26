@@ -189,11 +189,15 @@ public class LineAreasDetectionView {
         gridLabel.setText(String.format("x0=%.1f  y0=%.1f  charW=%.1f  lineH=%.1f",
                 r.bestCharX0(), r.bestLineY0(), r.bestCharW(), r.bestLineH()));
         lineHLabel.setText(String.format("lineH: %.1fpx  y0=%.1f", r.bestLineH(), r.bestLineY0())
-                + "  (" + r.hValleys().length + " valleys)"
-                + valleySummary(r.hValleys()));
+                + "  (" + r.hValleys().length + " valleys"
+                + (r.hValleysFiltered().length != r.hValleys().length
+                        ? "  →" + r.hValleysFiltered().length + " on-grid" : "") + ")"
+                + valleySummary(r.hValleysFiltered()));
         charWLabel.setText(String.format("charW: %.1fpx  x0=%.1f", r.bestCharW(), r.bestCharX0())
-                + "  (" + r.vValleys().length + " valleys)"
-                + valleySummary(r.vValleys()));
+                + "  (" + r.vValleys().length + " valleys"
+                + (r.vValleysFiltered().length != r.vValleys().length
+                        ? "  →" + r.vValleysFiltered().length + " on-grid" : "") + ")"
+                + valleySummary(r.vValleysFiltered()));
         drawDiffHist(diffHistYCanvas, r.diffHistY(), r.minLineH(), r.bestLineH(),
                 "lineH", Color.rgb(0, 200, 255, 0.9));
         drawDiffHist(diffHistXCanvas, r.diffHistX(), r.minCharW(), r.bestCharW(),
