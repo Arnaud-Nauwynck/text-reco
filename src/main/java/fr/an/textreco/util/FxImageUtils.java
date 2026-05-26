@@ -43,12 +43,16 @@ public class FxImageUtils {
         private int lastH = -1;
 
         /**
-         * Converts bgrMat to RGB bytes on the background thread, then returns a
-         * fresh WritableImage each call so the returned image is never shared with
-         * a previous scene-graph reference while being written.
+         * Converts {@code srcMat} to an RGB WritableImage on the background thread.
+         * Accepts 1-channel (grey/binary) or 3-channel (BGR) input.
+         * Returns a fresh WritableImage each call so it is never shared with a
+         * previous scene-graph reference while being written.
          */
-        public WritableImage update(Mat bgrMat) {
-            Imgproc.cvtColor(bgrMat, rgbMat, Imgproc.COLOR_BGR2RGB);
+        public WritableImage update(Mat srcMat) {
+            if (srcMat.channels() == 1)
+                Imgproc.cvtColor(srcMat, rgbMat, Imgproc.COLOR_GRAY2RGB);
+            else
+                Imgproc.cvtColor(srcMat, rgbMat, Imgproc.COLOR_BGR2RGB);
             int w = rgbMat.cols();
             int h = rgbMat.rows();
             if (w != lastW || h != lastH) {

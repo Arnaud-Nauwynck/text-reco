@@ -190,12 +190,13 @@ public class ProcessingPipeline {
                                 preProc.vColSums(), warped.cols());
 
                 TextLineExtractionResult linesResult = (preProc == null)
-                        ? null : lineExtractor.process(preProc.hRowSums(), warped, gridResult);
+                        ? null : lineExtractor.process(preProc.hRowSums(),
+                                preProcessingProcessor.binary, gridResult);
                 long t8 = System.nanoTime();
 
                 String ocrText = "";
                 if (linesResult != null && gridResult != null && !linesResult.lines().isEmpty()) {
-                    ocrText = classifyAllChars(linesResult, gridResult, warped);
+                    ocrText = classifyAllChars(linesResult, gridResult, preProcessingProcessor.binary);
                 }
 
                 boolean doTessOcr = !warped.empty()
@@ -260,11 +261,11 @@ public class ProcessingPipeline {
 
     private String classifyAllChars(TextLineExtractionResult lines,
                                     GridDetectionResult grid,
-                                    Mat warped) {
+                                    Mat binary) {
         double charW  = grid.bestCharW();
         double charX0 = grid.bestCharX0();
         double lineH  = grid.bestLineH();
-        int    fw     = warped.cols();
+        int    fw     = binary.cols();
         if (charW <= 0 || lineH <= 0) return "";
 
         // Rebuild column starts from the detected grid (same logic as CharClassifierView)
@@ -281,7 +282,7 @@ public class ProcessingPipeline {
         StringBuilder sb = new StringBuilder();
         for (var line : lines.lines()) {
             int lineTop = line.rowStart();
-            int lineBot = Math.min(line.rowEnd(), warped.rows());
+            int lineBot = Math.min(line.rowEnd(), binary.rows());
             int lh = lineBot - lineTop;
             if (lh <= 0) { sb.append('\n'); continue; }
             for (int ci = 0; ci < colStarts.length; ci++) {
@@ -289,7 +290,7 @@ public class ProcessingPipeline {
                 int cEnd = ci + 1 < colStarts.length ? colStarts[ci + 1] : cx + charWInt;
                 int cw   = Math.max(1, Math.min(cEnd - cx, fw - cx));
                 if (cx >= fw) break;
-                Mat crop = warped.submat(lineTop, lineBot, cx, cx + cw);
+                Mat crop = binary.submat(lineTop, lineBot, cx, cx + cw);
                 CharTemplateClassifier.Result r = charClassifier.classify(crop);
                 crop.release();
                 sb.append(r.isConfident() ? r.ch() : '?');

@@ -15,7 +15,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
 
@@ -25,8 +24,9 @@ import org.opencv.core.Rect;
  *
  * <p>Each card contains:
  * <ul>
- *   <li>Template image (zoomed 4×) with green bounding-rect overlay and
- *       dashed symmetry-axis lines (cyan = vertical, yellow = horizontal)</li>
+ *   <li>Template image (16×32 precomputed, displayed at 2× = 32×64) with green
+ *       bounding-rect overlay and dashed symmetry-axis lines (cyan = vertical,
+ *       yellow = horizontal)</li>
  *   <li>Horizontal histogram to the left (cyan horizontal bars, one per bbox row)</li>
  *   <li>Vertical histogram below (orange vertical bars, one per bbox column)</li>
  *   <li>Large glyph label</li>
@@ -37,8 +37,8 @@ import org.opencv.core.Rect;
  */
 public final class CharFeatureCardBuilder {
 
-    // zoom factor applied to the template Mat pixels for display
-    public static final int TMPL_ZOOM  = 4;
+    // zoom factor applied to the 16×32 precomputed template Mat pixels for display (32×64 on screen)
+    public static final int TMPL_ZOOM  = 2;
 
     private static final int BAR_W    = 120;
     private static final int BAR_H    = 56;
@@ -83,13 +83,6 @@ public final class CharFeatureCardBuilder {
         HBox tmplRow = new HBox(3, hHistCanvas, tmplStack);
         tmplRow.setAlignment(Pos.TOP_LEFT);
 
-        // glyph label
-        Label glyphLabel = new Label(String.valueOf(ch));
-        glyphLabel.setFont(Font.font("Monospaced", FontWeight.BOLD, 22));
-        glyphLabel.setStyle("-fx-text-fill: #88ff88;");
-        glyphLabel.setAlignment(Pos.CENTER);
-        glyphLabel.setMaxWidth(Double.MAX_VALUE);
-
         // bbox + symmetry info
         Rect bb = feat.boundingRect();
         Label infoLabel = new Label(String.format("bbox %dx%d @(%d,%d)  %s",
@@ -103,7 +96,7 @@ public final class CharFeatureCardBuilder {
         Label  huLabel  = new Label(formatHu(feat.hu()));
         huLabel.setStyle("-fx-text-fill: #aaddff; -fx-font-family: monospace; -fx-font-size: 10;");
 
-        VBox card = new VBox(3, tmplRow, vHistCanvas, glyphLabel, infoLabel, barChart, huLabel);
+        VBox card = new VBox(3, tmplRow, vHistCanvas, infoLabel, barChart, huLabel);
         card.setAlignment(Pos.TOP_CENTER);
         card.setPadding(new Insets(5));
         card.setStyle("-fx-background-color: #2a2a2a; -fx-border-color: #505050; -fx-border-width: 1;");

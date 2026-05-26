@@ -27,7 +27,8 @@ public class PreProcessingProcessor {
     private final Mat gray      = new Mat();
     private final Mat tophatSE  = new Mat();   // rebuilt when tophatRadius changes
     private final Mat tophat    = new Mat();
-    private final Mat binary    = new Mat();
+    // persistent after process() returns — readable by the pipeline for line extraction
+    public final Mat binary     = new Mat();
 
     private int lastTophatRadius = -1;
 

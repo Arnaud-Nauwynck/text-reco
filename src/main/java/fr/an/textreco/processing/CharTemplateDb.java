@@ -59,7 +59,7 @@ public class CharTemplateDb {
     }
 
     public CharTemplateDb() {
-        this(15, 28);
+        this(16, 32);
     }
 
     // -------------------------------------------------------------------------
@@ -83,6 +83,22 @@ public class CharTemplateDb {
     // public static feature-computation helpers
     // (also used by CharTemplateClassifier to extract features from live crops)
     // -------------------------------------------------------------------------
+
+    /**
+     * Computes all features for a live greyscale crop (not stored in the DB).
+     *
+     * <p>The returned {@link PreComputedFeaturesChar} owns an internal copy of
+     * the resized Mat ({@code templateW × templateH}).  The caller must call
+     * {@code result.tmpl().release()} when done with the result.
+     *
+     * @param grey8u  any single-channel greyscale Mat (any size)
+     * @return        fully populated feature record, size-normalised to the DB template dimensions
+     */
+    public PreComputedFeaturesChar computeAllFeatures(Mat grey8u) {
+        Mat resized = new Mat();
+        Imgproc.resize(grey8u, resized, new Size(templateW, templateH), 0, 0, Imgproc.INTER_LINEAR);
+        return buildCharFeatures(resized);   // buildCharFeatures stores 'resized' in the record
+    }
 
     /**
      * Returns the 7 log-scaled Hu moments for the given greyscale image.

@@ -92,7 +92,6 @@ public class GridDetectView {
 
     public GridDetectView(ProcessingContext context,
                                   TextLineExtractorProcessor extractor) {
-        context.perspectiveImageProperty.addListener((obs, o, img) -> { if (img != null) setWarpedImage(img); });
         context.preProcessingProperty   .addListener((obs, o, r)   -> onPreProcessing(r));
         context.textLinesProperty       .addListener((obs, o, r)   -> { if (r != null) onResult(r); });
         context.gridDetectionProperty   .addListener((obs, o, r)   -> { lastGrid = r; onGrid(r); });
@@ -149,7 +148,7 @@ public class GridDetectView {
         HBox previewAndHist = new HBox(2, previewStack, histCanvas);
         previewAndHist.setAlignment(Pos.TOP_LEFT);
         VBox leftContent = new VBox(2, previewAndHist, vHistCanvas);
-        VBox leftPanel = buildPanel("Warped + histograms", leftContent);
+        VBox leftPanel = buildPanel("Binary + histograms", leftContent);
 
         // right: diff-histograms + offset charts in 2×2
         HBox chartRow1 = new HBox(8,
@@ -247,6 +246,7 @@ public class GridDetectView {
     private void onPreProcessing(PreProcessingResult r) {
         if (r == null) return;
         lastPreProc = r;
+        setWarpedImage(r.binaryImage());
         drawVHistogram(r, lastGrid);
     }
 

@@ -25,13 +25,13 @@ public class TextLineExtractorProcessor {
     public TextLineExtractorProcessor() {}
 
     /**
-     * @param hRowSums   horizontal projection (open+close combined), length == warpedBgr.rows()
-     * @param warpedBgr  original colour frame — used only for cropping line images
-     * @param grid       detected grid parameters; if null an empty result is returned
+     * @param hRowSums  horizontal projection (open+close combined), length == binary.rows()
+     * @param binary    binarised single-channel frame — cropped for each line image
+     * @param grid      detected grid parameters; if null an empty result is returned
      */
-    public TextLineExtractionResult process(float[] hRowSums, Mat warpedBgr, GridDetectionResult grid) {
-        int w = warpedBgr.cols();
-        int h = warpedBgr.rows();
+    public TextLineExtractionResult process(float[] hRowSums, Mat binary, GridDetectionResult grid) {
+        int w = binary.cols();
+        int h = binary.rows();
         if (w == 0 || h == 0 || grid == null) {
             return new TextLineExtractionResult(w, h, List.of(),
                     hRowSums == null ? new float[0] : hRowSums,
@@ -62,7 +62,7 @@ public class TextLineExtractorProcessor {
 
             valleys.add(top);
 
-            Mat crop = warpedBgr.submat(new Rect(0, top, w, spanH));
+            Mat crop = binary.submat(new Rect(0, top, w, spanH));
             if (bufIdx >= lineBuffers.size()) lineBuffers.add(new FxImageUtils.ImageBuffer());
             lines.add(new TextLine(top, bottom, lineBuffers.get(bufIdx++).update(crop)));
         }
