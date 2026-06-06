@@ -1,9 +1,9 @@
 package fr.an.textreco.ui.tab;
 
+import de.saxsys.mvvmfx.JavaView;
 import fr.an.textreco.model.CameraDevice;
-import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.CameraCapture;
-import fr.an.textreco.ui.ProcessingPipeline;
+import fr.an.textreco.ui.viewmodel.ImageInputViewModel;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -26,7 +26,7 @@ import lombok.Getter;
 import java.io.File;
 import java.util.List;
 
-public class ImageInputView {
+public class ImageInputView extends VBox implements JavaView<ImageInputViewModel> {
 
     @Getter
     private final VBox root = new VBox(6);
@@ -34,16 +34,16 @@ public class ImageInputView {
     private final ImageView rawImageView       = new ImageView();
     private final ImageView processedImageView = new ImageView();
 
-    public ImageInputView(ProcessingContext context, ProcessingPipeline pipeline) {
+    public ImageInputView(ImageInputViewModel viewModel) {
         configureImageView(rawImageView);
         configureImageView(processedImageView);
 
-        rawImageView.imageProperty().bind(context.rawImageProperty);
-        context.preProcessingProperty.addListener((obs, o, r) -> {
+        rawImageView.imageProperty().bind(viewModel.rawImageProperty());
+        viewModel.preProcessingProperty().addListener((obs, o, r) -> {
             if (r != null) processedImageView.setImage(r.binaryImage());
         });
 
-        HBox toolbar = buildToolbar(context, pipeline);
+        HBox toolbar = buildToolbar(viewModel);
 
         HBox images = new HBox(8,
                 buildPanel("Camera",    rawImageView),
@@ -55,8 +55,7 @@ public class ImageInputView {
         root.setStyle("-fx-background-color: #1e1e1e;");
     }
 
-    private HBox buildToolbar(ProcessingContext context, ProcessingPipeline pipeline) {
-        // --- Camera selector ---
+    private HBox buildToolbar(ImageInputViewModel viewModel) {
         ComboBox<CameraDevice> cameraCombo = new ComboBox<>();
         cameraCombo.setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd; -fx-border-color: #555; -fx-border-width: 1;");
         cameraCombo.setPrefWidth(210);
@@ -73,24 +72,19 @@ public class ImageInputView {
             }
         });
 
-        // Show a placeholder immediately; probe replaces it with real caps.
         CameraDevice placeholder = new CameraDevice(0, "Camera 0", 0, 0, 0);
         cameraCombo.setItems(FXCollections.observableArrayList(placeholder));
         cameraCombo.setValue(placeholder);
 
-        // Probe all indices 0..3 via CAP_DSHOW in a background thread (can block per index).
-        // CAP_DSHOW allows concurrent opens, so camera 0 being held by the service is fine.
         Thread probeThread = new Thread(() -> {
             List<CameraDevice> found = CameraCapture.probeAvailableCameras(3, 2000);
             Platform.runLater(() -> {
                 if (found.isEmpty()) return;
                 cameraCombo.setItems(FXCollections.observableArrayList(found));
-                // Prefer highest index (USB enumerates after built-in)
-                CameraDevice preferred = found.get(found.size() - 1);
-                cameraCombo.setValue(preferred);
-                // Don't switch to camera if a file is already loaded and frozen
-                if (!context.inputSource.isFrozen()) {
-                    pipeline.selectCamera(preferred.index());
+                viewModel.setCameraList(found);
+                if (!viewModel.frozenProperty().get()) {
+                    CameraDevice preferred = found.get(found.size() - 1);
+                    cameraCombo.setValue(preferred);
                 }
             });
         });
@@ -98,16 +92,10 @@ public class ImageInputView {
         probeThread.start();
 
         cameraCombo.setOnAction(e -> {
-            if (context.inputSource.isFrozen()) {
-                return; // ignore camera changes while frozen
-            }
             CameraDevice selected = cameraCombo.getValue();
-            if (selected != null) {
-                pipeline.selectCamera(selected.index());
-            }
+            viewModel.selectCamera(selected);
         });
 
-        // --- Open image file ---
         Button openBtn = toolButton("Open Image…");
         openBtn.setOnAction(e -> {
             FileChooser fc = new FileChooser();
@@ -117,22 +105,17 @@ public class ImageInputView {
                     new FileChooser.ExtensionFilter("All Files", "*.*"));
             Window window = root.getScene() != null ? root.getScene().getWindow() : null;
             File file = fc.showOpenDialog(window);
-            if (file != null) {
-                pipeline.loadImageFile(file);
-            }
+            viewModel.loadFile(file);
         });
 
-        // --- Freeze / Resume toggle ---
         ToggleButton freezeBtn = new ToggleButton("Freeze");
         styleToggleButton(freezeBtn);
-        // keep button state in sync with the model (e.g. after loadImageFile auto-freezes)
-        context.inputSource.frozenProperty().addListener((obs, o, frozen) -> {
+        viewModel.frozenProperty().addListener((obs, o, frozen) -> {
             freezeBtn.setSelected(frozen);
             freezeBtn.setText(frozen ? "Resume" : "Freeze");
         });
-        freezeBtn.setOnAction(e -> pipeline.toggleFreeze());
+        freezeBtn.setOnAction(e -> viewModel.toggleFreezeCommand.execute());
 
-        // --- Save raw image ---
         Button saveBtn = toolButton("Save Raw…");
         saveBtn.setOnAction(e -> {
             FileChooser fc = new FileChooser();
@@ -144,7 +127,7 @@ public class ImageInputView {
             fc.setInitialFileName("frame.png");
             Window window = root.getScene() != null ? root.getScene().getWindow() : null;
             File file = fc.showSaveDialog(window);
-            if (file != null) pipeline.saveRawImage(file);
+            viewModel.saveRawImage(file);
         });
 
         HBox toolbar = new HBox(8, cameraCombo, openBtn, freezeBtn, saveBtn);
@@ -153,6 +136,8 @@ public class ImageInputView {
         toolbar.setStyle("-fx-background-color: #252525; -fx-border-color: #444; -fx-border-width: 0 0 1 0;");
         return toolbar;
     }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
 
     private void configureImageView(ImageView iv) {
         iv.setPreserveRatio(true);

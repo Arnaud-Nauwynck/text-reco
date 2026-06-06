@@ -1,6 +1,7 @@
 package fr.an.textreco.ui.tab;
 
-import fr.an.textreco.model.ProcessingContext;
+import de.saxsys.mvvmfx.JavaView;
+import fr.an.textreco.ui.viewmodel.TessOcrViewModel;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -14,7 +15,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
-public class TessOcrView {
+public class TessOcrView extends BorderPane implements JavaView<TessOcrViewModel> {
 
     @Getter
     private final BorderPane root = new BorderPane();
@@ -22,7 +23,7 @@ public class TessOcrView {
     private final TextArea textArea    = new TextArea();
     private final Label    statusLabel = new Label("OCR disabled.");
 
-    public TessOcrView(ProcessingContext context) {
+    public TessOcrView(TessOcrViewModel viewModel) {
         textArea.setEditable(false);
         textArea.setWrapText(true);
         textArea.setFont(Font.font("Monospaced", 13));
@@ -33,11 +34,11 @@ public class TessOcrView {
 
         CheckBox enableBox = new CheckBox("Enable OCR every frame");
         enableBox.setStyle("-fx-text-fill: #cccccc;");
-        enableBox.selectedProperty().bindBidirectional(context.ocrEnabledProperty);
+        enableBox.selectedProperty().bindBidirectional(viewModel.ocrEnabledProperty());
 
         Button runOnceBtn = new Button("Run once");
         runOnceBtn.setStyle("-fx-background-color: #3a5a3a; -fx-text-fill: #dddddd;");
-        runOnceBtn.setOnAction(e -> context.requestOcrOnce());
+        runOnceBtn.setOnAction(e -> viewModel.runOnceCommand.execute());
 
         HBox toolbar = new HBox(12, enableBox, runOnceBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
@@ -50,7 +51,7 @@ public class TessOcrView {
         root.setCenter(textArea);
         root.setStyle("-fx-background-color: #1e1e1e;");
 
-        context.tessOcrProperty.addListener((obs, oldVal, newVal) -> {
+        viewModel.tessOcrProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 textArea.setText(newVal);
             } else {
@@ -59,11 +60,11 @@ public class TessOcrView {
             }
         });
 
-        context.frameStatsProperty.addListener((obs, oldVal, s) -> {
+        viewModel.frameStatsProperty().addListener((obs, oldVal, s) -> {
             if (s == null) return;
             long ms = s.tessOcrMs();
             if (ms >= 0) {
-                String txt = context.tessOcrProperty.get();
+                String txt = viewModel.tessOcrProperty().get();
                 int chars = txt == null ? 0 : txt.length();
                 statusLabel.setText("Last OCR: " + ms + " ms  (" + chars + " chars)");
             }

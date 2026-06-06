@@ -1,12 +1,13 @@
 package fr.an.textreco.ui.tab;
 
+import de.saxsys.mvvmfx.JavaView;
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.PreProcessingResult;
-import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.CharTemplateClassifier;
 import fr.an.textreco.processing.CharTemplateDb;
+import fr.an.textreco.ui.viewmodel.CharClassifierViewModel;
 import fr.an.textreco.processing.PreComputedFeaturesChar;
 import fr.an.textreco.util.FxImageUtils;
 import javafx.geometry.Insets;
@@ -44,7 +45,7 @@ import java.util.Map;
  * card for each of those characters so the crop can be visually compared
  * against the template features.
  */
-public class CharClassifierView {
+public class CharClassifierView extends VBox implements JavaView<CharClassifierViewModel> {
 
     private static final double LINE_VIEW_W  = 800;
     private static final double LINE_VIEW_H  = 40;
@@ -109,14 +110,13 @@ public class CharClassifierView {
     // construction
     // -------------------------------------------------------------------------
 
-    public CharClassifierView(ProcessingContext context,
-                              CharTemplateClassifier classifier) {
-        this.classifier = classifier;
+    public CharClassifierView(CharClassifierViewModel viewModel) {
+        this.classifier = viewModel.getCharClassifier();
         this.db         = classifier.getDb();
 
-        context.textLinesProperty    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
-        context.gridDetectionProperty.addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
-        context.preProcessingProperty.addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
+        viewModel.textLinesProperty()    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
+        viewModel.gridDetectionProperty().addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
+        viewModel.preProcessingProperty().addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
 
         lineView.setPreserveRatio(true);
         lineView.setFitWidth(LINE_VIEW_W);

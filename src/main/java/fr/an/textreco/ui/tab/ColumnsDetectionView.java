@@ -1,12 +1,13 @@
 package fr.an.textreco.ui.tab;
 
+import de.saxsys.mvvmfx.JavaView;
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.PreProcessingResult;
-import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.processing.CharTemplateClassifier;
 import fr.an.textreco.processing.CharTemplateDb;
+import fr.an.textreco.ui.viewmodel.ColumnsDetectionViewModel;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -24,7 +25,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
-public class ColumnsDetectionView {
+public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetectionViewModel> {
 
     private static final double LINE_VIEW_W = 800;
     private static final double LINE_VIEW_H = 80;
@@ -66,12 +67,11 @@ public class ColumnsDetectionView {
 
     private final CharTemplateClassifier classifier;
 
-    public ColumnsDetectionView(ProcessingContext context,
-                                CharTemplateClassifier classifier) {
-        this.classifier = classifier;
-        context.textLinesProperty    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
-        context.gridDetectionProperty.addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
-        context.preProcessingProperty.addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
+    public ColumnsDetectionView(ColumnsDetectionViewModel viewModel) {
+        this.classifier = viewModel.getCharClassifier();
+        viewModel.textLinesProperty()    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
+        viewModel.gridDetectionProperty().addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
+        viewModel.preProcessingProperty().addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
 
         lineView.setPreserveRatio(true);
         lineView.setFitWidth(LINE_VIEW_W);

@@ -1,5 +1,6 @@
 package fr.an.textreco.model;
 
+import de.saxsys.mvvmfx.ViewModel;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -9,7 +10,7 @@ import javafx.beans.property.SimpleObjectProperty;
  * Observable settings for the pre-processing (binarisation + morphology) stage.
  * Kept in the model layer so views can bind directly without depending on the processor.
  */
-public class PreProcessingSettings {
+public class PreProcessingSettings implements ViewModel {
 
     public final ObjectProperty<BinarizationMethod> binarizationMethod =
             new SimpleObjectProperty<>(BinarizationMethod.TOPHAT);

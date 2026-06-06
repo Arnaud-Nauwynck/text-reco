@@ -43,10 +43,8 @@ public class TextRecoJavaFxApplication extends Application {
             pipeline.loadImageFile(file);
         }
 
-        // Views subscribe to Model properties in their own constructors.
-        TextRecoView view = new TextRecoView(
-                context, pipeline,
-                perspProcessor, lineExtractor);
+        // Views receive ViewModels constructed in TextRecoView.
+        TextRecoView view = new TextRecoView(context, pipeline, perspProcessor);
 
         stage.getIcons().clear();
         stage.setScene(new Scene(view.getRoot(), 1400, 700));

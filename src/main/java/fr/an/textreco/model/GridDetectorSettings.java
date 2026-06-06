@@ -1,5 +1,6 @@
 package fr.an.textreco.model;
 
+import de.saxsys.mvvmfx.ViewModel;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
@@ -14,7 +15,7 @@ import javafx.beans.property.SimpleIntegerProperty;
  * The processor reads them via {@code .get()} on every frame — JavaFX property
  * reads are thread-safe (volatile under the hood).
  */
-public class GridDetectorSettings {
+public class GridDetectorSettings implements ViewModel {
 
     // -------------------------------------------------------------------------
     // Search range (pixels)

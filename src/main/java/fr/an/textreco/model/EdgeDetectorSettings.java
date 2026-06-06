@@ -1,9 +1,10 @@
 package fr.an.textreco.model;
 
+import de.saxsys.mvvmfx.ViewModel;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 
-public class EdgeDetectorSettings {
+public class EdgeDetectorSettings implements ViewModel {
 
     private final DoubleProperty cannyThreshold1 = new SimpleDoubleProperty(80);
     private final DoubleProperty cannyThreshold2 = new SimpleDoubleProperty(150);

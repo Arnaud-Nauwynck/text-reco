@@ -6,9 +6,12 @@ import fr.an.textreco.model.InputSource;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLineExtractionResult;
+import fr.an.textreco.model.CorrelationGridDetectionResult;
+import fr.an.textreco.model.GridDetectorMode;
 import fr.an.textreco.processing.CameraCapture;
 import fr.an.textreco.processing.CharTemplateClassifier;
 import fr.an.textreco.processing.CharTemplateDb;
+import fr.an.textreco.processing.CorrelationGridDetectorProcessor;
 import fr.an.textreco.processing.EdgeDetectorProcessor;
 import fr.an.textreco.processing.GridDetectorProcessor;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
@@ -53,7 +56,8 @@ public class ProcessingPipeline {
     private final PerspectiveTransformProcessor     perspectiveProcessor;
     private final PreProcessingProcessor            preProcessingProcessor;
     private final TextLineExtractorProcessor        lineExtractor;
-    @Getter private final GridDetectorProcessor     gridDetector;
+    @Getter private final GridDetectorProcessor            gridDetector;
+    @Getter private final CorrelationGridDetectorProcessor correlationGridDetector;
     @Getter private final CharTemplateDb             charTemplateDb  = new CharTemplateDb();
     @Getter private final CharTemplateClassifier    charClassifier  = new CharTemplateClassifier(charTemplateDb);
     private final TessOcrProcessor                  tessOcr       = new TessOcrProcessor();
@@ -80,8 +84,9 @@ public class ProcessingPipeline {
         this.perspectiveProcessor  = perspectiveProcessor;
         this.preProcessingProcessor = preProcessingProcessor;
         this.lineExtractor         = lineExtractor;
-        this.gridDetector          = new GridDetectorProcessor(context.gridDetectorSettings);
-        this.cameraCapture         = new CameraCapture(context.inputSource);
+        this.gridDetector               = new GridDetectorProcessor(context.gridDetectorSettings);
+        this.correlationGridDetector    = new CorrelationGridDetectorProcessor(context.correlationGridDetectorSettings);
+        this.cameraCapture              = new CameraCapture(context.inputSource);
     }
 
     // -------------------------------------------------------------------------
@@ -184,10 +189,19 @@ public class ProcessingPipeline {
                         ? null : preProcessingProcessor.process(warped);
                 long t7 = System.nanoTime();
 
-                GridDetectionResult gridResult = (preProc == null) ? null
-                        : gridDetector.processFromSums(
+                GridDetectionResult gridResult = null;
+                CorrelationGridDetectionResult corrResult = null;
+                if (preProc != null) {
+                    GridDetectorMode mode = context.gridDetectorMode.get();
+                    if (mode == GridDetectorMode.CORRELATION) {
+                        corrResult = correlationGridDetector.process(warped);
+                        gridResult = corrResult.toGridDetectionResult();
+                    } else {
+                        gridResult = gridDetector.processFromSums(
                                 preProc.hRowSums(), warped.rows(),
                                 preProc.vColSums(), warped.cols());
+                    }
+                }
 
                 TextLineExtractionResult linesResult = (preProc == null)
                         ? null : lineExtractor.process(preProc.hRowSums(),
@@ -222,6 +236,7 @@ public class ProcessingPipeline {
                 final PreProcessingResult fPreProc = preProc;
                 final TextLineExtractionResult fLines = linesResult;
                 final GridDetectionResult fGrid  = gridResult;
+                final CorrelationGridDetectionResult fCorrResult = corrResult;
                 final String fOcrText            = ocrText;
                 final String fTessOcrText        = tessOcrText;
                 Platform.runLater(() -> {
@@ -230,7 +245,8 @@ public class ProcessingPipeline {
                     if (fPerspImg   != null) context.perspectiveImageProperty.set(fPerspImg);
                     if (fPreProc    != null) context.preProcessingProperty   .set(fPreProc);
                     if (fLines      != null) context.textLinesProperty       .set(fLines);
-                    if (fGrid       != null) context.gridDetectionProperty   .set(fGrid);
+                    if (fGrid       != null) context.gridDetectionProperty           .set(fGrid);
+                    if (fCorrResult != null) context.correlationGridDetectionProperty.set(fCorrResult);
                     if (fOcrText    != null
                             && !Objects.equals(context.ocrProperty.get(), fOcrText)) {
                         context.ocrProperty.set(fOcrText);

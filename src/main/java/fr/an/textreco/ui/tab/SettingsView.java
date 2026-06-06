@@ -1,8 +1,8 @@
 package fr.an.textreco.ui.tab;
 
+import de.saxsys.mvvmfx.JavaView;
 import fr.an.textreco.model.BinarizationMethod;
-import fr.an.textreco.model.ProcessingContext;
-import fr.an.textreco.processing.TextLineExtractorProcessor;
+import fr.an.textreco.ui.viewmodel.SettingsViewModel;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.IntegerProperty;
 import javafx.collections.FXCollections;
@@ -22,7 +22,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
-public class SettingsView {
+public class SettingsView extends TabPane implements JavaView<SettingsViewModel> {
 
     @Getter
     private final TabPane root = new TabPane();
@@ -31,8 +31,7 @@ public class SettingsView {
     @Getter private final Spinner<Integer> captureWidthSpinner  = new Spinner<>(320, 3840, 640, 160);
     @Getter private final Spinner<Integer> captureHeightSpinner = new Spinner<>(240, 2160, 480, 120);
 
-    public SettingsView(ProcessingContext context,
-                        TextLineExtractorProcessor lineExtractor) {
+    public SettingsView(SettingsViewModel viewModel) {
 
         root.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         root.setStyle("-fx-background-color: #1e1e1e;");
@@ -40,10 +39,10 @@ public class SettingsView {
 
         root.getTabs().addAll(
                 buildCameraTab(),
-                buildProcessingTab(context),
-                buildCannyTab(context),
-                buildPreProcessingTab(context),
-                buildLineDetectionTab(lineExtractor, context));
+                buildProcessingTab(viewModel),
+                buildCannyTab(viewModel),
+                buildPreProcessingTab(viewModel),
+                buildLineDetectionTab(viewModel));
     }
 
     // -------------------------------------------------------------------------
@@ -65,23 +64,23 @@ public class SettingsView {
         return subTab("Camera", padded(grid));
     }
 
-    private Tab buildProcessingTab(ProcessingContext context) {
+    private Tab buildProcessingTab(SettingsViewModel vm) {
         CheckBox darkThemeBox = new CheckBox("Dark theme  (white text on black background)");
         darkThemeBox.setStyle("-fx-text-fill: #cccccc;");
-        darkThemeBox.selectedProperty().bindBidirectional(context.appSettings.darkThemeProperty());
+        darkThemeBox.selectedProperty().bindBidirectional(vm.appSettings.darkThemeProperty());
         return subTab("Processing", padded(darkThemeBox));
     }
 
-    private Tab buildCannyTab(ProcessingContext context) {
+    private Tab buildCannyTab(SettingsViewModel vm) {
         Label val1 = monoLabel("0");
         Slider s1  = slider(0, 300, 50);
-        s1.valueProperty().bindBidirectional(context.edgeDetectorSettings.cannyThreshold1Property());
-        val1.textProperty().bind(Bindings.format("%.0f", context.edgeDetectorSettings.cannyThreshold1Property()));
+        s1.valueProperty().bindBidirectional(vm.edgeDetectorSettings.cannyThreshold1Property());
+        val1.textProperty().bind(Bindings.format("%.0f", vm.edgeDetectorSettings.cannyThreshold1Property()));
 
         Label val2 = monoLabel("0");
         Slider s2  = slider(0, 500, 50);
-        s2.valueProperty().bindBidirectional(context.edgeDetectorSettings.cannyThreshold2Property());
-        val2.textProperty().bind(Bindings.format("%.0f", context.edgeDetectorSettings.cannyThreshold2Property()));
+        s2.valueProperty().bindBidirectional(vm.edgeDetectorSettings.cannyThreshold2Property());
+        val2.textProperty().bind(Bindings.format("%.0f", vm.edgeDetectorSettings.cannyThreshold2Property()));
 
         VBox box = new VBox(6,
                 hrow(styledLabel("Threshold 1 (low):"),  s1, val1),
@@ -89,8 +88,8 @@ public class SettingsView {
         return subTab("Canny", padded(box));
     }
 
-    private Tab buildPreProcessingTab(ProcessingContext context) {
-        var ps = context.preProcessingSettings;
+    private Tab buildPreProcessingTab(SettingsViewModel vm) {
+        var ps = vm.preProcessingSettings;
         ComboBox<BinarizationMethod> methodCombo = new ComboBox<>(
                 FXCollections.observableArrayList(BinarizationMethod.values()));
         methodCombo.setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd;");
@@ -136,9 +135,8 @@ public class SettingsView {
         return subTab("Pre-Processing", padded(box));
     }
 
-    private Tab buildLineDetectionTab(TextLineExtractorProcessor lineExtractor,
-                                      ProcessingContext context) {
-        var gridDetectorSettings = context.gridDetectorSettings;
+    private Tab buildLineDetectionTab(SettingsViewModel vm) {
+        var gridDetectorSettings = vm.gridDetectorSettings;
         Spinner<Integer> minLineHSp = intSpinner(4,  120, gridDetectorSettings.minLineH.get());
         Spinner<Integer> maxLineHSp = intSpinner(4,  120, gridDetectorSettings.maxLineH.get());
         Spinner<Integer> minCharWSp = intSpinner(2,  80,  gridDetectorSettings.minCharW.get());

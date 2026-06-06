@@ -8,6 +8,8 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.scene.image.WritableImage;
 
+import static fr.an.textreco.model.GridDetectorMode.VALLEY;
+
 /**
  * Model of the MVC pattern: holds all observable pipeline outputs that the
  * View layers observe, plus the shared {@link InputSource} and the
@@ -52,6 +54,10 @@ public class ProcessingContext {
     public final EdgeDetectorSettings  edgeDetectorSettings  = new EdgeDetectorSettings();
     public final PreProcessingSettings preProcessingSettings = new PreProcessingSettings();
     public final GridDetectorSettings  gridDetectorSettings  = new GridDetectorSettings();
+
+    public final ObjectProperty<GridDetectorMode>         gridDetectorMode                  = new SimpleObjectProperty<>(VALLEY);
+    public final CorrelationGridDetectorSettings          correlationGridDetectorSettings    = new CorrelationGridDetectorSettings();
+    public final ObjectProperty<CorrelationGridDetectionResult> correlationGridDetectionProperty = new SimpleObjectProperty<>();
 
     // -------------------------------------------------------------------------
     // one-shot OCR request (written from FX thread, read by camera thread)

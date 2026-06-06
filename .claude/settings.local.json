@@ -18,7 +18,15 @@
       "Bash(cmd.exe /c \"cd /d C:\\\\arn\\\\devPerso\\\\my-github\\\\text-reco && mvn compile 2>&1\")",
       "Bash(export PATH=\"$PATH:/c/Program Files/Maven/bin:/c/ProgramData/chocolatey/bin\")",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(New-Item *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\arn\\\\devPerso\\\\my-github\\\\text-reco\" -Recurse -Filter \"*.java\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "WebFetch(domain:sialcasa.github.io)",
+      "WebFetch(domain:javadoc.io)",
+      "Bash(javap *)",
+      "Bash(jar --describe-module --file ~/.m2/repository/de/saxsys/mvvmfx/1.8.0/mvvmfx-1.8.0.jar)"
     ]
   }
 }

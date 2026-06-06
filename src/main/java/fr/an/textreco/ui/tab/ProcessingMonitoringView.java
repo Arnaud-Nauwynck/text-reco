@@ -1,7 +1,8 @@
 package fr.an.textreco.ui.tab;
 
+import de.saxsys.mvvmfx.JavaView;
 import fr.an.textreco.model.FrameStats;
-import fr.an.textreco.model.ProcessingContext;
+import fr.an.textreco.ui.viewmodel.ProcessingMonitoringViewModel;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
@@ -10,7 +11,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import lombok.Getter;
 
-public class ProcessingMonitoringView {
+public class ProcessingMonitoringView extends VBox implements JavaView<ProcessingMonitoringViewModel> {
 
     @Getter
     private final VBox root = new VBox(12);
@@ -30,8 +31,8 @@ public class ProcessingMonitoringView {
     // exponential moving average for FPS smoothing (α = 0.1)
     private double smoothFps = 0;
 
-    public ProcessingMonitoringView(ProcessingContext context) {
-        context.frameStatsProperty.addListener((obs, o, s) -> { if (s != null) onStats(s); });
+    public ProcessingMonitoringView(ProcessingMonitoringViewModel viewModel) {
+        viewModel.frameStatsProperty().addListener((obs, o, s) -> { if (s != null) onStats(s); });
         root.setPadding(new Insets(16));
         root.setStyle("-fx-background-color: #1e1e1e;");
 

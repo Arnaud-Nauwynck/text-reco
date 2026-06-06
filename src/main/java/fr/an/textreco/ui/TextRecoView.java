@@ -2,7 +2,6 @@ package fr.an.textreco.ui;
 
 import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
-import fr.an.textreco.processing.TextLineExtractorProcessor;
 import fr.an.textreco.ui.tab.CharClassifierView;
 import fr.an.textreco.ui.tab.CharFeaturesView;
 import fr.an.textreco.ui.tab.ImageInputView;
@@ -13,6 +12,15 @@ import fr.an.textreco.ui.tab.ProcessingMonitoringView;
 import fr.an.textreco.ui.tab.ResultTextView;
 import fr.an.textreco.ui.tab.SettingsView;
 import fr.an.textreco.ui.tab.TessOcrView;
+import fr.an.textreco.ui.viewmodel.CharClassifierViewModel;
+import fr.an.textreco.ui.viewmodel.GridDetectViewModel;
+import fr.an.textreco.ui.viewmodel.ImageInputViewModel;
+import fr.an.textreco.ui.viewmodel.PerspectiveTransformViewModel;
+import fr.an.textreco.ui.viewmodel.PreProcessingViewModel;
+import fr.an.textreco.ui.viewmodel.ProcessingMonitoringViewModel;
+import fr.an.textreco.ui.viewmodel.ResultTextViewModel;
+import fr.an.textreco.ui.viewmodel.SettingsViewModel;
+import fr.an.textreco.ui.viewmodel.TessOcrViewModel;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -28,20 +36,31 @@ public class TextRecoView {
 
     public TextRecoView(ProcessingContext context,
                         ProcessingPipeline pipeline,
-                        PerspectiveTransformProcessor perspectiveProcessor,
-                        TextLineExtractorProcessor lineExtractor) {
+                        PerspectiveTransformProcessor perspectiveProcessor) {
 
+        // --- Construct ViewModels ---
+        ImageInputViewModel          imageInputVM    = new ImageInputViewModel(context, pipeline);
+        PerspectiveTransformViewModel perspectiveVM  = new PerspectiveTransformViewModel(context, perspectiveProcessor);
+        PreProcessingViewModel        preProcessingVM = new PreProcessingViewModel(context);
+        GridDetectViewModel           gridDetectVM    = new GridDetectViewModel(context);
+        CharClassifierViewModel       charClassifierVM = new CharClassifierViewModel(context, pipeline.getCharClassifier());
+        TessOcrViewModel              tessOcrVM       = new TessOcrViewModel(context);
+        SettingsViewModel             settingsVM      = new SettingsViewModel(context);
+        ProcessingMonitoringViewModel monitoringVM    = new ProcessingMonitoringViewModel(context);
+        ResultTextViewModel           resultTextVM    = new ResultTextViewModel(context);
+
+        // --- Construct Views with their ViewModels ---
         TabPane tabPane = new TabPane(
-                buildTab("Input",          new ImageInputView(context, pipeline).getRoot()),
-                buildTab("Perspective",    new PerspectiveTransformView(context, perspectiveProcessor).getRoot()),
-                buildTab("Pre-Processing", new PreProcessingView(context).getRoot()),
-                buildTab("Grid Detect",    new GridDetectView(context, lineExtractor).getRoot()),
-                buildTab("Char Classifier", new CharClassifierView(context, pipeline.getCharClassifier()).getRoot()),
-                buildTab("Char Features",  new CharFeaturesView(pipeline.getCharTemplateDb()).getRoot()),
-                buildTab("TessOCR",        new TessOcrView(context).getRoot()),
-                buildTab("Settings",       new SettingsView(context, lineExtractor).getRoot()),
-                buildTab("Perfs",          new ProcessingMonitoringView(context).getRoot()),
-                buildTab("Results",        new ResultTextView(context).getRoot())
+                buildTab("Input",           new ImageInputView(imageInputVM).getRoot()),
+                buildTab("Perspective",     new PerspectiveTransformView(perspectiveVM).getRoot()),
+                buildTab("Pre-Processing",  new PreProcessingView(preProcessingVM).getRoot()),
+                buildTab("Grid Detect",     new GridDetectView(gridDetectVM).getRoot()),
+                buildTab("Char Classifier", new CharClassifierView(charClassifierVM).getRoot()),
+                buildTab("Char Features",   new CharFeaturesView(pipeline.getCharTemplateDb()).getRoot()),
+                buildTab("TessOCR",         new TessOcrView(tessOcrVM).getRoot()),
+                buildTab("Settings",        new SettingsView(settingsVM).getRoot()),
+                buildTab("Perfs",           new ProcessingMonitoringView(monitoringVM).getRoot()),
+                buildTab("Results",         new ResultTextView(resultTextVM).getRoot())
         );
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setStyle("-fx-background-color: #1e1e1e;");

@@ -1,12 +1,15 @@
 package fr.an.textreco.ui.tab;
 
+import de.saxsys.mvvmfx.JavaView;
+import fr.an.textreco.model.CorrelationGridDetectionResult;
 import fr.an.textreco.model.GridDetectionResult;
+import fr.an.textreco.model.GridDetectorMode;
 import fr.an.textreco.model.PreProcessingResult;
-import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.model.GridDetectorSettings;
-import fr.an.textreco.processing.TextLineExtractorProcessor;
+import fr.an.textreco.model.CorrelationGridDetectorSettings;
+import fr.an.textreco.ui.viewmodel.GridDetectViewModel;
 import javafx.beans.property.IntegerProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -15,9 +18,11 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.beans.property.DoubleProperty;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -31,7 +36,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-public class GridDetectView {
+public class GridDetectView extends HBox implements JavaView<GridDetectViewModel> {
 
     private static final double PREVIEW_W = 520;
     private static final double PREVIEW_H = 400;
@@ -87,16 +92,50 @@ public class GridDetectView {
     private final CheckBox         forceColCountCb   = styledCheckBox("Force col count");
     private final Spinner<Integer> forcedColCountSp  = intSpinner(1, 500, 80);
 
+    // --- mode selector ---
+    private final ToggleGroup  modeGroup      = new ToggleGroup();
+    private final RadioButton  valleyRadio    = styledRadio("Valley / Hough",  modeGroup);
+    private final RadioButton  corrRadio      = styledRadio("Correlation",      modeGroup);
+
+    // --- correlation-specific panel ---
+    private static final double PROJ_W = ACC_W * 2 + 8;
+    private static final double PROJ_H = ACC_H;
+    private final Canvas corrProjCanvas   = new Canvas(PROJ_W, PROJ_H);
+    private final Label  corrLineHLabel   = statLabel("lineH: —");
+    private final Label  corrPhaseLabel   = statLabel("phase: —");
+    private final Spinner<Integer> corrMinHSp   = intSpinner(1, 200, 8);
+    private final Spinner<Integer> corrMaxHSp   = intSpinner(1, 200, 40);
+    private final Spinner<Double>  corrAlphaSp  = dblSpinner(0.01, 1.0, 0.15);
+    private javafx.scene.Node corrPanel; // built lazily in constructor
+
     private GridDetectionResult lastGrid    = null;
     private PreProcessingResult lastPreProc = null;
 
-    public GridDetectView(ProcessingContext context,
-                                  TextLineExtractorProcessor extractor) {
-        context.preProcessingProperty   .addListener((obs, o, r)   -> onPreProcessing(r));
-        context.textLinesProperty       .addListener((obs, o, r)   -> { if (r != null) onResult(r); });
-        context.gridDetectionProperty   .addListener((obs, o, r)   -> { lastGrid = r; onGrid(r); });
+    public GridDetectView(GridDetectViewModel viewModel) {
+        viewModel.preProcessingProperty()            .addListener((obs, o, r) -> onPreProcessing(r));
+        viewModel.textLinesProperty()                .addListener((obs, o, r) -> { if (r != null) onResult(r); });
+        viewModel.gridDetectionProperty()            .addListener((obs, o, r) -> { lastGrid = r; onGrid(r); });
+        viewModel.correlationGridDetectionProperty() .addListener((obs, o, r) -> onCorrelationResult(r));
 
-        GridDetectorSettings gs = context.gridDetectorSettings;
+        // mode radio buttons wired to model
+        valleyRadio.setSelected(viewModel.gridDetectorMode().get() == GridDetectorMode.VALLEY);
+        corrRadio  .setSelected(viewModel.gridDetectorMode().get() == GridDetectorMode.CORRELATION);
+        modeGroup.selectedToggleProperty().addListener((obs, o, n) -> {
+            if (n == corrRadio)   viewModel.gridDetectorMode().set(GridDetectorMode.CORRELATION);
+            else                  viewModel.gridDetectorMode().set(GridDetectorMode.VALLEY);
+        });
+        viewModel.gridDetectorMode().addListener((obs, o, n) -> {
+            valleyRadio.setSelected(n == GridDetectorMode.VALLEY);
+            corrRadio  .setSelected(n == GridDetectorMode.CORRELATION);
+        });
+
+        // correlation settings spinners
+        CorrelationGridDetectorSettings cs = viewModel.getCorrelationGridDetectorSettings();
+        bindIntSpinner(corrMinHSp,  cs.minLineHeight);
+        bindIntSpinner(corrMaxHSp,  cs.maxLineHeight);
+        bindDblSpinner(corrAlphaSp, cs.smoothingAlpha);
+
+        GridDetectorSettings gs = viewModel.getGridDetectorSettings();
 
         forceLineHCb.selectedProperty().bindBidirectional(gs.forceLineH);
         bindDblSpinner(forcedLineHSp, gs.forcedLineH);
@@ -170,19 +209,34 @@ public class GridDetectView {
         HBox forceLineCountRow = hrow(detectedLineCountLabel, forceLineCountCb, forcedLineCountSp);
         HBox forceColCountRow  = hrow(detectedColCountLabel,  forceColCountCb,  forcedColCountSp);
 
+        VBox valleySettingsBox = new VBox(4,
+                lineCountLabel, gridLabel, lineHLabel, charWLabel,
+                forceLineHRow, forceCharWRow, forceOffsetRow,
+                forceLineCountRow, forceColCountRow,
+                chartRow1, chartRow2);
+
+        corrPanel = buildCorrelationPanel();
+
         lineScroll = new ScrollPane(lineList);
         lineScroll.setFitToWidth(true);
         lineScroll.setStyle("-fx-background-color: #1e1e1e; -fx-background: #1e1e1e;");
         lineList.setPadding(new Insets(4));
 
+        HBox modeRow = hrow(styledLabel("Detector:"), valleyRadio, corrRadio);
+
         VBox rightContent = new VBox(6,
-                lineCountLabel, gridLabel, lineHLabel, charWLabel,
-                forceLineHRow, forceCharWRow, forceOffsetRow,
-                forceLineCountRow, forceColCountRow,
-                chartRow1, chartRow2,
+                modeRow,
+                valleySettingsBox,
+                corrPanel,
                 sectionLabel("Extracted Lines"), lineScroll);
         VBox.setVgrow(lineScroll, javafx.scene.layout.Priority.ALWAYS);
         rightContent.setStyle("-fx-background-color: #1e1e1e;");
+
+        // show/hide the detector-specific panels based on mode
+        corrPanel       .visibleProperty().bind(viewModel.gridDetectorMode().isEqualTo(GridDetectorMode.CORRELATION));
+        corrPanel       .managedProperty().bind(corrPanel.visibleProperty());
+        valleySettingsBox.visibleProperty().bind(viewModel.gridDetectorMode().isEqualTo(GridDetectorMode.VALLEY));
+        valleySettingsBox.managedProperty().bind(valleySettingsBox.visibleProperty());
 
         VBox rightPanel = buildPanel("Lines & Grid", rightContent);
 
@@ -241,6 +295,73 @@ public class GridDetectView {
                 r.bestCharX0(), "x0", Color.rgb(255, 200, 0, 0.9));
         // also refresh histograms that show valley marks
         if (lastPreProc != null) drawVHistogram(lastPreProc, r);
+    }
+
+    private void onCorrelationResult(CorrelationGridDetectionResult r) {
+        if (r == null) {
+            corrLineHLabel.setText("lineH: —");
+            corrPhaseLabel.setText("phase: —");
+            return;
+        }
+        corrLineHLabel.setText(String.format("lineH: %.2f px", r.smoothedLineHeight()));
+        corrPhaseLabel.setText(String.format("phase: %.2f px  lines: %d", r.smoothedPhase(), r.linePositions().size()));
+        drawProjectionWithGrid(corrProjCanvas, r.projection(), r.smoothedLineHeight(), r.smoothedPhase());
+    }
+
+    private javafx.scene.Node buildCorrelationPanel() {
+        HBox corrParamsRow = hrow(
+                styledLabel("minH:"), corrMinHSp,
+                styledLabel("maxH:"), corrMaxHSp,
+                styledLabel("alpha:"), corrAlphaSp);
+        VBox box = new VBox(6,
+                corrLineHLabel, corrPhaseLabel,
+                corrParamsRow,
+                buildPanel("Projection + grid fit", corrProjCanvas));
+        box.setStyle("-fx-background-color: #1e1e1e;");
+        return box;
+    }
+
+    private static void drawProjectionWithGrid(Canvas canvas, double[] proj,
+                                               double lineHeight, double phase) {
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+        double cw = canvas.getWidth(), ch = canvas.getHeight();
+        gc.setFill(Color.rgb(15, 15, 20));
+        gc.fillRect(0, 0, cw, ch);
+        if (proj == null || proj.length == 0) return;
+
+        double maxV = 1.0;
+        for (double v : proj) if (v > maxV) maxV = v;
+
+        int n = proj.length;
+        double xScale = cw / n;
+
+        // projection bars
+        gc.setFill(Color.rgb(80, 160, 80, 0.7));
+        for (int i = 0; i < n; i++) {
+            double bh = (proj[i] / maxV) * (ch - 2);
+            gc.fillRect(i * xScale, ch - bh, Math.max(1.0, xScale - 0.3), bh);
+        }
+
+        // fitted grid lines: gap positions (phase + N*lineHeight)
+        if (lineHeight > 0) {
+            gc.setStroke(Color.rgb(255, 80, 80, 0.9));
+            gc.setLineWidth(1.5);
+            for (double pos = phase; pos < n; pos += lineHeight) {
+                double x = pos * xScale;
+                gc.strokeLine(x, 0, x, ch);
+            }
+            // text-line midpoints
+            gc.setStroke(Color.rgb(0, 220, 120, 0.8));
+            gc.setLineWidth(1.0);
+            double textStart = (phase + lineHeight * 0.5) % lineHeight;
+            for (double pos = textStart; pos < n; pos += lineHeight) {
+                double x = pos * xScale;
+                gc.strokeLine(x, ch * 0.3, x, ch);
+            }
+            gc.setFont(Font.font("Monospace", FontWeight.BOLD, 9));
+            gc.setFill(Color.rgb(255, 200, 200, 0.9));
+            gc.fillText(String.format("H=%.2f  φ=%.2f", lineHeight, phase), 3, 10);
+        }
     }
 
     private void onPreProcessing(PreProcessingResult r) {
@@ -679,5 +800,12 @@ public class GridDetectView {
         HBox b = new HBox(6, nodes);
         b.setAlignment(Pos.CENTER_LEFT);
         return b;
+    }
+
+    private static RadioButton styledRadio(String text, ToggleGroup group) {
+        RadioButton rb = new RadioButton(text);
+        rb.setToggleGroup(group);
+        rb.setStyle("-fx-text-fill: #cccccc;");
+        return rb;
     }
 }

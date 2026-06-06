@@ -1,9 +1,10 @@
 package fr.an.textreco.model;
 
+import de.saxsys.mvvmfx.ViewModel;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 
-public class AppSettings {
+public class AppSettings implements ViewModel {
 
     /**
      * When true: terminal uses white text on black background (dark theme).

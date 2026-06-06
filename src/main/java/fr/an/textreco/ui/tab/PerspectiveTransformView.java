@@ -1,7 +1,8 @@
 package fr.an.textreco.ui.tab;
 
-import fr.an.textreco.model.ProcessingContext;
+import de.saxsys.mvvmfx.JavaView;
 import fr.an.textreco.processing.PerspectiveTransformProcessor;
+import fr.an.textreco.ui.viewmodel.PerspectiveTransformViewModel;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
@@ -25,7 +26,7 @@ import lombok.Getter;
  * Shows the raw camera frame with 4 draggable corner handles defining the
  * perspective quad, and a warped output preview beside it.
  */
-public class PerspectiveTransformView {
+public class PerspectiveTransformView extends HBox implements JavaView<PerspectiveTransformViewModel> {
 
     private static final double DISPLAY_W = 480;
     private static final double DISPLAY_H = 360;
@@ -53,11 +54,10 @@ public class PerspectiveTransformView {
     private double offsetX   = 0;
     private double offsetY   = 0;
 
-    public PerspectiveTransformView(ProcessingContext context,
-                                    PerspectiveTransformProcessor processor) {
-        this.processor = processor;
-        context.rawImageProperty        .addListener((obs, o, img) -> setRawImage(img));
-        context.perspectiveImageProperty.addListener((obs, o, img) -> setWarpedImage(img));
+    public PerspectiveTransformView(PerspectiveTransformViewModel viewModel) {
+        this.processor = viewModel.getProcessor();
+        viewModel.rawImageProperty()        .addListener((obs, o, img) -> setRawImage(img));
+        viewModel.perspectiveImageProperty().addListener((obs, o, img) -> setWarpedImage(img));
 
         configureImageView(rawView);
         configureImageView(warpedView);
