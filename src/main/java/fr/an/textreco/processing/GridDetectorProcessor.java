@@ -2,6 +2,7 @@ package fr.an.textreco.processing;
 
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.GridDetectorSettings;
+import fr.an.textreco.util.MatFacade;
 import lombok.Getter;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -12,32 +13,32 @@ import java.util.List;
 
 /**
  * Detects a regular character grid (line-height and char-width).
- *
+ * <p>
  * Pipeline for each axis (Y = line height, X = char width):
- *
- *   1. Valley detection — find midpoints of sub-threshold regions in the
- *      projection histogram (open+close combined).  Each midpoint is one
- *      inter-line (or inter-char) gap.  All valleys are kept, including
- *      boundary ones (first/last char-column or line-gap edges).
- *
- *   2. Difference histogram — histogram of consecutive inter-valley gaps.
- *      The modal bin (most frequent gap size) is the best period estimate.
- *      This is immune to harmonics: a gap of 60px when the true period is 30px
- *      simply means one valley was missed; it still votes in the 60px bin,
- *      not in the 30px bin — while real 30px gaps dominate.
- *
- *   3. Filter valleys — keep only those that lie within ±tolerance of
- *      some  offset + N × period  position.  Outliers are dropped.
- *
- *   4. Hough offset — build acc[p mod period] += signal[p] over the whole
- *      histogram.  The minimum bin is the gap phase (fewest strokes = gap).
- *
- *   Fallback — if fewer than 2 valleys are found the Hough-contrast method
- *   is used across the full candidate range.
- *
+ * <p>
+ * 1. Valley detection — find midpoints of sub-threshold regions in the
+ * projection histogram (open+close combined).  Each midpoint is one
+ * inter-line (or inter-char) gap.  All valleys are kept, including
+ * boundary ones (first/last char-column or line-gap edges).
+ * <p>
+ * 2. Difference histogram — histogram of consecutive inter-valley gaps.
+ * The modal bin (most frequent gap size) is the best period estimate.
+ * This is immune to harmonics: a gap of 60px when the true period is 30px
+ * simply means one valley was missed; it still votes in the 60px bin,
+ * not in the 30px bin — while real 30px gaps dominate.
+ * <p>
+ * 3. Filter valleys — keep only those that lie within ±tolerance of
+ * some  offset + N × period  position.  Outliers are dropped.
+ * <p>
+ * 4. Hough offset — build acc[p mod period] += signal[p] over the whole
+ * histogram.  The minimum bin is the gap phase (fewest strokes = gap).
+ * <p>
+ * Fallback — if fewer than 2 valleys are found the Hough-contrast method
+ * is used across the full candidate range.
+ * <p>
  * X range is constrained to [0.2, 0.9] × bestLineH after Y is resolved,
  * supporting narrow terminal fonts where charW ≈ lineH/3.
- *
+ * <p>
  * All tunable parameters live in {@link GridDetectorSettings} (the Model).
  * This processor reads them via property.get() on every frame — no copies kept.
  */
@@ -48,14 +49,17 @@ public class GridDetectorProcessor {
 
     private float[] rowSums = new float[0];
     private float[] colSums = new float[0];
-    private final Mat reduceScratch = new Mat();
+    private final Mat reduceScratch = MatFacade.alloc("GridDetector.reduceScratch");
+    // reusable outputs for Core.reduce — pre-allocated to avoid per-call allocation
+    private final Mat reduceRowOut = MatFacade.alloc("GridDetector.reduceRowOut");
+    private final Mat reduceColOut = MatFacade.alloc("GridDetector.reduceColOut");
 
     public GridDetectorProcessor(GridDetectorSettings settings) {
         this.settings = settings;
     }
 
     public GridDetectionResult process(Mat morphHorizMat, Mat closeHorizMat,
-                                       Mat morphVertMat,  Mat closeVertMat) {
+                                       Mat morphVertMat, Mat closeVertMat) {
         int w = morphHorizMat.cols();
         int h = morphHorizMat.rows();
         if (w == 0 || h == 0) return null;
@@ -77,8 +81,8 @@ public class GridDetectorProcessor {
 
         // ---- Y axis ----
         // First pass with minH to feed period-finding algorithms.
-        int[]   hValleysRaw = detectValleys(hRowSums, h, minH);
-        int[]   diffHistY   = buildDiffHist(hValleysRaw, minH, maxH);
+        int[] hValleysRaw = detectValleys(hRowSums, h, minH);
+        int[] diffHistY = buildDiffHist(hValleysRaw, minH, maxH);
 
         int numLineH = maxH - minH + 1;
         float[][] accY = buildAccumulator(hRowSums, h, minH, maxH, numLineH);
@@ -124,8 +128,8 @@ public class GridDetectorProcessor {
         int numCharW = maxW - minW + 1;
 
         // First pass with minW to feed period-finding algorithms.
-        int[]   vValleysRaw = detectValleys(vColSums, w, minW);
-        int[]   diffHistX   = buildDiffHist(vValleysRaw, minW, maxW);
+        int[] vValleysRaw = detectValleys(vColSums, w, minW);
+        int[] diffHistX = buildDiffHist(vValleysRaw, minW, maxW);
         float[][] accX = buildAccumulator(vColSums, w, minW, maxW, numCharW);
 
         double bestCharW;
@@ -188,8 +192,8 @@ public class GridDetectorProcessor {
         for (int i = 0; i < n; i++) if (sig[i] > globalMax) globalMax = sig[i];
         if (globalMax == 0) return new int[0];
 
-        float thresh  = 0.25f * globalMax;
-        int   halfWin = Math.max(3, minT / 2);
+        float thresh = 0.25f * globalMax;
+        int halfWin = Math.max(3, minT / 2);
 
         // raw local minima below threshold
         List<Integer> raw = new ArrayList<>();
@@ -197,7 +201,10 @@ public class GridDetectorProcessor {
             if (sig[r] >= thresh) continue;
             boolean isMin = true;
             for (int k = r - halfWin; k <= r + halfWin; k++)
-                if (sig[k] < sig[r]) { isMin = false; break; }
+                if (sig[k] < sig[r]) {
+                    isMin = false;
+                    break;
+                }
             if (isMin) raw.add(r);
         }
 
@@ -212,7 +219,7 @@ public class GridDetectorProcessor {
                 if (sig[raw.get(k)] < sig[deepest]) deepest = raw.get(k);
             // expand to flat-bottom midpoint
             int lo = deepest, hi = deepest;
-            while (lo > 0     && sig[lo - 1] <= thresh) lo--;
+            while (lo > 0 && sig[lo - 1] <= thresh) lo--;
             while (hi < n - 1 && sig[hi + 1] <= thresh) hi++;
             merged.add((lo + hi) / 2);
             i = j + 1;
@@ -246,20 +253,20 @@ public class GridDetectorProcessor {
 
     /**
      * Best period estimate from a set of valley positions.
-     *
+     * <p>
      * Primary: if ≥ 2 valleys, use (last - first) / (count - 1) — the span
      * divided by the number of gaps.  This is equivalent to a least-squares
      * fit of a uniform grid and is maximally precise because it spreads the
      * accumulated error over the full span rather than just one gap at a time.
-     *
+     * <p>
      * Falls back to the diff-histogram weighted mean when only 1 gap exists.
      * Returns 0 if fewer than 2 valleys or the estimate is outside [minT, maxT].
      */
     static double spanPeriod(int[] valleys, int[] diffHist, int minT, int maxT) {
         if (valleys.length >= 2) {
             double span = valleys[valleys.length - 1] - valleys[0];
-            int    gaps = valleys.length - 1;
-            double T    = span / gaps;
+            int gaps = valleys.length - 1;
+            double T = span / gaps;
             if (T >= minT && T <= maxT) return T;
         }
         // fallback: weighted mean of diff-histogram modal cluster
@@ -270,12 +277,15 @@ public class GridDetectorProcessor {
         if (hist == null || hist.length == 0) return 0;
         int modalCount = 0, modalIdx = -1;
         for (int i = 0; i < hist.length; i++)
-            if (hist[i] > modalCount) { modalCount = hist[i]; modalIdx = i; }
+            if (hist[i] > modalCount) {
+                modalCount = hist[i];
+                modalIdx = i;
+            }
         if (modalCount < 2 || modalIdx < 0) return 0;
         int modalT = modalIdx + minT;
         int window = Math.max(1, modalT / 4);
         double weightedSum = 0;
-        int    totalWeight = 0;
+        int totalWeight = 0;
         for (int i = 0; i < hist.length; i++) {
             int T = i + minT;
             if (Math.abs(T - modalT) <= window && hist[i] > 0) {
@@ -339,7 +349,7 @@ public class GridDetectorProcessor {
     static int bestFitPeriod(int[] valleys, int n, int minT, int maxT) {
         if (valleys.length < 2) return 0;
         float bestScore = -1;
-        int   bestT     = 0;
+        int bestT = 0;
         for (int T = minT; T <= maxT; T++) {
             int tol = Math.max(1, T / 6);
             int bestInliers = 0;
@@ -353,7 +363,10 @@ public class GridDetectorProcessor {
                 if (inliers > bestInliers) bestInliers = inliers;
             }
             float score = (float) bestInliers / valleys.length;
-            if (score > bestScore) { bestScore = score; bestT = T; }
+            if (score > bestScore) {
+                bestScore = score;
+                bestT = T;
+            }
         }
         return bestScore > 0 ? bestT : 0;
     }
@@ -374,20 +387,27 @@ public class GridDetectorProcessor {
     }
 
     private static double[] houghBestPeriod(float[][] acc, int minT, int numT) {
-        int   bestT = minT, bestOff = 0;
+        int bestT = minT, bestOff = 0;
         float bestScore = -1;
         for (int ti = 0; ti < numT; ti++) {
             int T = ti + minT;
             float maxV = 0, minV = Float.MAX_VALUE;
-            int   minOff = 0;
+            int minOff = 0;
             for (int o = 0; o < T && o < acc[ti].length; o++) {
                 if (acc[ti][o] > maxV) maxV = acc[ti][o];
-                if (acc[ti][o] < minV) { minV = acc[ti][o]; minOff = o; }
+                if (acc[ti][o] < minV) {
+                    minV = acc[ti][o];
+                    minOff = o;
+                }
             }
             float score = maxV > 0 ? (maxV - minV) / maxV : 0;
-            if (score > bestScore) { bestScore = score; bestT = T; bestOff = minOff; }
+            if (score > bestScore) {
+                bestScore = score;
+                bestT = T;
+                bestOff = minOff;
+            }
         }
-        return new double[]{ bestT, bestOff };
+        return new double[]{bestT, bestOff};
     }
 
     // -------------------------------------------------------------------------
@@ -396,19 +416,19 @@ public class GridDetectorProcessor {
 
     private void addReduceRow(Mat matA, Mat matB, int h, float[] out) {
         org.opencv.core.Core.add(matA, matB, reduceScratch);
-        Mat m = new Mat();
-        org.opencv.core.Core.reduce(reduceScratch, m, 1, org.opencv.core.Core.REDUCE_SUM, CvType.CV_32F);
-        m.get(0, 0, out);
-        m.release();
+        org.opencv.core.Core.reduce(reduceScratch, reduceRowOut, 1, org.opencv.core.Core.REDUCE_SUM, CvType.CV_32F);
+        reduceRowOut.get(0, 0, out);
     }
 
     private void addReduceCol(Mat matA, Mat matB, int w, float[] out) {
         org.opencv.core.Core.add(matA, matB, reduceScratch);
-        Mat m = new Mat();
-        org.opencv.core.Core.reduce(reduceScratch, m, 0, org.opencv.core.Core.REDUCE_SUM, CvType.CV_32F);
-        m.get(0, 0, out);
-        m.release();
+        org.opencv.core.Core.reduce(reduceScratch, reduceColOut, 0, org.opencv.core.Core.REDUCE_SUM, CvType.CV_32F);
+        reduceColOut.get(0, 0, out);
     }
 
-    public void release() { reduceScratch.release(); }
+    public void release() {
+        MatFacade.release(reduceScratch, "GridDetector.reduceScratch");
+        MatFacade.release(reduceRowOut, "GridDetector.reduceRowOut");
+        MatFacade.release(reduceColOut, "GridDetector.reduceColOut");
+    }
 }

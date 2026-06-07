@@ -27,9 +27,12 @@ public class SettingsView extends TabPane implements JavaView<SettingsViewModel>
     @Getter
     private final TabPane root = new TabPane();
 
-    @Getter private final Spinner<Integer> cameraIndexSpinner   = new Spinner<>(0, 9, 0);
-    @Getter private final Spinner<Integer> captureWidthSpinner  = new Spinner<>(320, 3840, 640, 160);
-    @Getter private final Spinner<Integer> captureHeightSpinner = new Spinner<>(240, 2160, 480, 120);
+    @Getter
+    private final Spinner<Integer> cameraIndexSpinner = new Spinner<>(0, 9, 0);
+    @Getter
+    private final Spinner<Integer> captureWidthSpinner = new Spinner<>(320, 3840, 640, 160);
+    @Getter
+    private final Spinner<Integer> captureHeightSpinner = new Spinner<>(240, 2160, 480, 120);
 
     public SettingsView(SettingsViewModel viewModel) {
 
@@ -57,9 +60,12 @@ public class SettingsView extends TabPane implements JavaView<SettingsViewModel>
         GridPane grid = new GridPane();
         grid.setHgap(12);
         grid.setVgap(10);
-        grid.add(styledLabel("Camera index:"),   0, 0); grid.add(cameraIndexSpinner,   1, 0);
-        grid.add(styledLabel("Capture width:"),  0, 1); grid.add(captureWidthSpinner,  1, 1);
-        grid.add(styledLabel("Capture height:"), 0, 2); grid.add(captureHeightSpinner, 1, 2);
+        grid.add(styledLabel("Camera index:"), 0, 0);
+        grid.add(cameraIndexSpinner, 1, 0);
+        grid.add(styledLabel("Capture width:"), 0, 1);
+        grid.add(captureWidthSpinner, 1, 1);
+        grid.add(styledLabel("Capture height:"), 0, 2);
+        grid.add(captureHeightSpinner, 1, 2);
 
         return subTab("Camera", padded(grid));
     }
@@ -73,17 +79,17 @@ public class SettingsView extends TabPane implements JavaView<SettingsViewModel>
 
     private Tab buildCannyTab(SettingsViewModel vm) {
         Label val1 = monoLabel("0");
-        Slider s1  = slider(0, 300, 50);
+        Slider s1 = slider(0, 300, 50);
         s1.valueProperty().bindBidirectional(vm.edgeDetectorSettings.cannyThreshold1Property());
         val1.textProperty().bind(Bindings.format("%.0f", vm.edgeDetectorSettings.cannyThreshold1Property()));
 
         Label val2 = monoLabel("0");
-        Slider s2  = slider(0, 500, 50);
+        Slider s2 = slider(0, 500, 50);
         s2.valueProperty().bindBidirectional(vm.edgeDetectorSettings.cannyThreshold2Property());
         val2.textProperty().bind(Bindings.format("%.0f", vm.edgeDetectorSettings.cannyThreshold2Property()));
 
         VBox box = new VBox(6,
-                hrow(styledLabel("Threshold 1 (low):"),  s1, val1),
+                hrow(styledLabel("Threshold 1 (low):"), s1, val1),
                 hrow(styledLabel("Threshold 2 (high):"), s2, val2));
         return subTab("Canny", padded(box));
     }
@@ -108,15 +114,15 @@ public class SettingsView extends TabPane implements JavaView<SettingsViewModel>
         bindIntSlider(adaptBlockSlider, adaptBlockVal, ps.adaptiveBlock);
 
         VBox tophatParams = new VBox(4,
-                hrow(styledLabel("Top-hat radius:"),    thRadSlider,      thRadVal),
-                hrow(styledLabel("Top-hat threshold:"), thThrSlider,      thThrVal));
+                hrow(styledLabel("Top-hat radius:"), thRadSlider, thRadVal),
+                hrow(styledLabel("Top-hat threshold:"), thThrSlider, thThrVal));
         VBox adaptiveParams = new VBox(4,
-                hrow(styledLabel("Adaptive block:"),    adaptBlockSlider, adaptBlockVal));
+                hrow(styledLabel("Adaptive block:"), adaptBlockSlider, adaptBlockVal));
 
         Runnable updateVisibility = () -> {
             BinarizationMethod m = methodCombo.getValue();
-            tophatParams  .setVisible(m == BinarizationMethod.TOPHAT);
-            tophatParams  .setManaged(m == BinarizationMethod.TOPHAT);
+            tophatParams.setVisible(m == BinarizationMethod.TOPHAT);
+            tophatParams.setManaged(m == BinarizationMethod.TOPHAT);
             adaptiveParams.setVisible(m == BinarizationMethod.ADAPTIVE);
             adaptiveParams.setManaged(m == BinarizationMethod.ADAPTIVE);
         };
@@ -137,10 +143,10 @@ public class SettingsView extends TabPane implements JavaView<SettingsViewModel>
 
     private Tab buildLineDetectionTab(SettingsViewModel vm) {
         var gridDetectorSettings = vm.gridDetectorSettings;
-        Spinner<Integer> minLineHSp = intSpinner(4,  120, gridDetectorSettings.minLineH.get());
-        Spinner<Integer> maxLineHSp = intSpinner(4,  120, gridDetectorSettings.maxLineH.get());
-        Spinner<Integer> minCharWSp = intSpinner(2,  80,  gridDetectorSettings.minCharW.get());
-        Spinner<Integer> maxCharWSp = intSpinner(2,  80,  gridDetectorSettings.maxCharW.get());
+        Spinner<Integer> minLineHSp = intSpinner(4, 120, gridDetectorSettings.minLineH.get());
+        Spinner<Integer> maxLineHSp = intSpinner(4, 120, gridDetectorSettings.maxLineH.get());
+        Spinner<Integer> minCharWSp = intSpinner(2, 80, gridDetectorSettings.minCharW.get());
+        Spinner<Integer> maxCharWSp = intSpinner(2, 80, gridDetectorSettings.maxCharW.get());
 
         bindIntSpinner(minLineHSp, gridDetectorSettings.minLineH);
         bindIntSpinner(maxLineHSp, gridDetectorSettings.maxLineH);
@@ -149,9 +155,9 @@ public class SettingsView extends TabPane implements JavaView<SettingsViewModel>
 
         VBox box = new VBox(8,
                 hrow(styledLabel("Line H min:"), minLineHSp, styledLabel("px"),
-                     styledLabel("  max:"), maxLineHSp, styledLabel("px")),
+                        styledLabel("  max:"), maxLineHSp, styledLabel("px")),
                 hrow(styledLabel("Char W min:"), minCharWSp, styledLabel("px"),
-                     styledLabel("  max:"), maxCharWSp, styledLabel("px")));
+                        styledLabel("  max:"), maxCharWSp, styledLabel("px")));
         return subTab("Line Detection", padded(box));
     }
 
@@ -177,7 +183,9 @@ public class SettingsView extends TabPane implements JavaView<SettingsViewModel>
 
     private static void bindIntSpinner(Spinner<Integer> s, IntegerProperty prop) {
         s.getValueFactory().setValue(prop.get());
-        s.valueProperty().addListener((obs, o, n) -> { if (n != null) prop.set(n); });
+        s.valueProperty().addListener((obs, o, n) -> {
+            if (n != null) prop.set(n);
+        });
         prop.addListener((obs, o, n) -> {
             if (!n.equals(s.getValue())) s.getValueFactory().setValue(n.intValue());
         });

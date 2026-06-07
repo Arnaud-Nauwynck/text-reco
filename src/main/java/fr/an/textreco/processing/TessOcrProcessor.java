@@ -39,12 +39,12 @@ public class TessOcrProcessor {
             tess.setOcrEngineMode(1); // OEM_LSTM_ONLY
             tess.setPageSegMode(6);   // single uniform block of text
             tess.setVariable("tessedit_char_whitelist", BASE64_CHARS);
-            tess.setVariable("load_system_dawg",  "false");
-            tess.setVariable("load_freq_dawg",    "false");
+            tess.setVariable("load_system_dawg", "false");
+            tess.setVariable("load_freq_dawg", "false");
             tess.setVariable("load_unambig_dawg", "false");
-            tess.setVariable("load_punc_dawg",    "false");
-            tess.setVariable("load_number_dawg",  "false");
-            tess.setVariable("load_bigram_dawg",  "false");
+            tess.setVariable("load_punc_dawg", "false");
+            tess.setVariable("load_number_dawg", "false");
+            tess.setVariable("load_bigram_dawg", "false");
             tess.setVariable("language_model_penalty_non_dict_word", "0");
             tess.setVariable("language_model_penalty_non_freq_dict_word", "0");
             ready = true;
@@ -92,8 +92,11 @@ public class TessOcrProcessor {
         if (in == null) {
             // Fallback: open the tess4j jar directly via the code-source location
             URI jarUri;
-            try { jarUri = Tesseract.class.getProtectionDomain().getCodeSource().getLocation().toURI(); }
-            catch (URISyntaxException ex) { throw new IOException("Cannot locate tess4j jar", ex); }
+            try {
+                jarUri = Tesseract.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+            } catch (URISyntaxException ex) {
+                throw new IOException("Cannot locate tess4j jar", ex);
+            }
             URI zipUri = URI.create("jar:" + jarUri);
             try (FileSystem fs = FileSystems.newFileSystem(zipUri, Map.of())) {
                 Path entry = fs.getPath("tessdata", name);

@@ -29,10 +29,10 @@ public class TextRecoJavaFxApplication extends Application {
         // Model: all observable pipeline outputs + settings
         ProcessingContext context = new ProcessingContext();
 
-        EdgeDetectorProcessor         edgeDetector   = new EdgeDetectorProcessor(context.edgeDetectorSettings);
+        EdgeDetectorProcessor edgeDetector = new EdgeDetectorProcessor(context.edgeDetectorSettings);
         PerspectiveTransformProcessor perspProcessor = new PerspectiveTransformProcessor();
-        PreProcessingProcessor        preProcessor   = new PreProcessingProcessor(context.preProcessingSettings, context.appSettings);
-        TextLineExtractorProcessor    lineExtractor  = new TextLineExtractorProcessor();
+        PreProcessingProcessor preProcessor = new PreProcessingProcessor(context.preProcessingSettings, context.appSettings);
+        TextLineExtractorProcessor lineExtractor = new TextLineExtractorProcessor();
 
         // Controller: drives processors, publishes into context
         ProcessingPipeline pipeline = new ProcessingPipeline(

@@ -10,17 +10,27 @@ import javafx.beans.property.ObjectProperty;
 
 public class CharClassifierViewModel implements ViewModel {
 
-    private final ProcessingContext       context;
-    private final CharTemplateClassifier  charClassifier;
+    private final ProcessingContext context;
+    private final CharTemplateClassifier charClassifier;
 
     public CharClassifierViewModel(ProcessingContext context, CharTemplateClassifier charClassifier) {
-        this.context        = context;
+        this.context = context;
         this.charClassifier = charClassifier;
     }
 
-    public ObjectProperty<TextLineExtractionResult> textLinesProperty()    { return context.textLinesProperty; }
-    public ObjectProperty<GridDetectionResult>      gridDetectionProperty() { return context.gridDetectionProperty; }
-    public ObjectProperty<PreProcessingResult>      preProcessingProperty() { return context.preProcessingProperty; }
+    public ObjectProperty<TextLineExtractionResult> textLinesProperty() {
+        return context.textLinesProperty;
+    }
 
-    public CharTemplateClassifier getCharClassifier() { return charClassifier; }
+    public ObjectProperty<GridDetectionResult> gridDetectionProperty() {
+        return context.gridDetectionProperty;
+    }
+
+    public ObjectProperty<PreProcessingResult> preProcessingProperty() {
+        return context.preProcessingProperty;
+    }
+
+    public CharTemplateClassifier getCharClassifier() {
+        return charClassifier;
+    }
 }

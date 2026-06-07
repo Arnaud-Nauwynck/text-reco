@@ -1,5 +1,6 @@
 package fr.an.textreco.processing;
 
+import fr.an.textreco.util.MatFacade;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
@@ -42,18 +43,21 @@ public class CharTemplateClassifier {
      * One entry in the top-3 ranking: a candidate character and its
      * template-matching score (TM_CCOEFF_NORMED, higher = better).
      */
-    public record TopEntry(char ch, float score) {}
+    public record TopEntry(char ch, float score) {
+    }
 
     /**
      * Classification result.
      *
-     * @param ch     best character, or {@code '?'} when below the confidence threshold
-     * @param score  TM_CCOEFF_NORMED score of the best match (range ≈ −1..1)
-     * @param top3   up to 3 best candidates sorted by score descending;
-     *               index 0 is always the best (same as {@code ch}/{@code score})
+     * @param ch    best character, or {@code '?'} when below the confidence threshold
+     * @param score TM_CCOEFF_NORMED score of the best match (range ≈ −1..1)
+     * @param top3  up to 3 best candidates sorted by score descending;
+     *              index 0 is always the best (same as {@code ch}/{@code score})
      */
     public record Result(char ch, float score, TopEntry[] top3) {
-        public boolean isConfident() { return ch != '?'; }
+        public boolean isConfident() {
+            return ch != '?';
+        }
 
         @Override
         public String toString() {
@@ -79,14 +83,14 @@ public class CharTemplateClassifier {
      *     6    h7 (I7)             0.5        sign-sensitive skew; often near zero
      * </pre>
      */
-    public static final double[] DEFAULT_HU_WEIGHTS = { 5.0, 4.0, 3.0, 2.0, 1.5, 1.0, 0.5 };
+    public static final double[] DEFAULT_HU_WEIGHTS = {5.0, 4.0, 3.0, 2.0, 1.5, 1.0, 0.5};
 
     // -------------------------------------------------------------------------
     // fields
     // -------------------------------------------------------------------------
 
     private final CharTemplateDb db;
-    private final float          confidenceThreshold;
+    private final float confidenceThreshold;
 
     /**
      * Per-moment weights used by {@link #classifyByHuMoments}.
@@ -94,17 +98,19 @@ public class CharTemplateClassifier {
      */
     private double[] huWeights = DEFAULT_HU_WEIGHTS.clone();
 
-    /** Scratch Mats — reused across calls to avoid allocation pressure. */
-    private final Mat matchResult = new Mat();
-    private final Mat resized     = new Mat();
-    private final Mat grey        = new Mat();
+    /**
+     * Scratch Mats — reused across calls to avoid allocation pressure.
+     */
+    private final Mat matchResult = MatFacade.alloc("CharClassifier.matchResult");
+    private final Mat resized = MatFacade.alloc("CharClassifier.resized");
+    private final Mat grey = MatFacade.alloc("CharClassifier.grey");
 
     // -------------------------------------------------------------------------
     // construction
     // -------------------------------------------------------------------------
 
     public CharTemplateClassifier(CharTemplateDb db, float confidenceThreshold) {
-        this.db                  = db;
+        this.db = db;
         this.confidenceThreshold = confidenceThreshold;
     }
 
@@ -116,12 +122,16 @@ public class CharTemplateClassifier {
     // accessors
     // -------------------------------------------------------------------------
 
-    public CharTemplateDb getDb() { return db; }
+    public CharTemplateDb getDb() {
+        return db;
+    }
 
     /**
      * Returns a defensive copy of the current Hu-moment weight vector (length 7).
      */
-    public double[] getHuWeights() { return huWeights.clone(); }
+    public double[] getHuWeights() {
+        return huWeights.clone();
+    }
 
     /**
      * Replaces the Hu-moment weight vector used by {@link #classifyByHuMoments}.
@@ -157,22 +167,28 @@ public class CharTemplateClassifier {
                 0, 0, Imgproc.INTER_LINEAR);
 
         // track top-3 inline: top[0] = best, top[1] = 2nd, top[2] = 3rd
-        char[]  topCh    = { '?', '?', '?' };
-        float[] topScore = { -2f, -2f, -2f };
+        char[] topCh = {'?', '?', '?'};
+        float[] topScore = {-2f, -2f, -2f};
 
         for (Map.Entry<Character, PreComputedFeaturesChar> e : features.entrySet()) {
             Imgproc.matchTemplate(resized, e.getValue().tmpl(), matchResult, Imgproc.TM_CCOEFF_NORMED);
             float score = (float) matchResult.get(0, 0)[0];
             // insert into top-3 (insertion sort on 3 elements)
             if (score > topScore[0]) {
-                topScore[2] = topScore[1]; topCh[2] = topCh[1];
-                topScore[1] = topScore[0]; topCh[1] = topCh[0];
-                topScore[0] = score;       topCh[0] = e.getKey();
+                topScore[2] = topScore[1];
+                topCh[2] = topCh[1];
+                topScore[1] = topScore[0];
+                topCh[1] = topCh[0];
+                topScore[0] = score;
+                topCh[0] = e.getKey();
             } else if (score > topScore[1]) {
-                topScore[2] = topScore[1]; topCh[2] = topCh[1];
-                topScore[1] = score;       topCh[1] = e.getKey();
+                topScore[2] = topScore[1];
+                topCh[2] = topCh[1];
+                topScore[1] = score;
+                topCh[1] = e.getKey();
             } else if (score > topScore[2]) {
-                topScore[2] = score;       topCh[2] = e.getKey();
+                topScore[2] = score;
+                topCh[2] = e.getKey();
             }
         }
 
@@ -181,11 +197,11 @@ public class CharTemplateClassifier {
         TopEntry[] top3 = new TopEntry[count];
         for (int i = 0; i < count; i++) top3[i] = new TopEntry(topCh[i], topScore[i]);
 
-        char  bestCh    = top3.length > 0 ? top3[0].ch()    : '?';
+        char bestCh = top3.length > 0 ? top3[0].ch() : '?';
         float bestScore = top3.length > 0 ? top3[0].score() : 0f;
         return bestScore >= confidenceThreshold
                 ? new Result(bestCh, bestScore, top3)
-                : new Result('?',    bestScore, top3);
+                : new Result('?', bestScore, top3);
     }
 
     /**
@@ -199,17 +215,20 @@ public class CharTemplateClassifier {
 
         double[] cropHu = CharTemplateDb.computeHuMoments(toGreyRef(charCrop));
 
-        char   bestCh   = '?';
+        char bestCh = '?';
         double bestDist = Double.MAX_VALUE;
         for (Map.Entry<Character, PreComputedFeaturesChar> e : features.entrySet()) {
             double dist = huDistance(cropHu, e.getValue().hu(), huWeights);
-            if (dist < bestDist) { bestDist = dist; bestCh = e.getKey(); }
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestCh = e.getKey();
+            }
         }
 
         float score = (float) (1.0 / (1.0 + bestDist));
         return score >= confidenceThreshold
                 ? new Result(bestCh, score, new TopEntry[0])
-                : new Result('?',    score, new TopEntry[0]);
+                : new Result('?', score, new TopEntry[0]);
     }
 
     /**
@@ -223,17 +242,20 @@ public class CharTemplateClassifier {
 
         double[] feat = CharTemplateDb.computeMomentFeatures(toGreyRef(charCrop));
 
-        char   bestCh   = '?';
+        char bestCh = '?';
         double bestDist = Double.MAX_VALUE;
         for (Map.Entry<Character, PreComputedFeaturesChar> e : features.entrySet()) {
             double dist = momentDistance(feat, e.getValue().moment());
-            if (dist < bestDist) { bestDist = dist; bestCh = e.getKey(); }
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestCh = e.getKey();
+            }
         }
 
         float score = (float) (1.0 / (1.0 + bestDist));
         return score >= confidenceThreshold
                 ? new Result(bestCh, score, new TopEntry[0])
-                : new Result('?',    score, new TopEntry[0]);
+                : new Result('?', score, new TopEntry[0]);
     }
 
     // -------------------------------------------------------------------------
@@ -241,9 +263,9 @@ public class CharTemplateClassifier {
     // -------------------------------------------------------------------------
 
     public void release() {
-        matchResult.release();
-        resized.release();
-        grey.release();
+        MatFacade.release(matchResult, "CharClassifier.matchResult");
+        MatFacade.release(resized, "CharClassifier.resized");
+        MatFacade.release(grey, "CharClassifier.grey");
     }
 
     // -------------------------------------------------------------------------
@@ -256,9 +278,18 @@ public class CharTemplateClassifier {
      * {@link #toGreyRef}.
      */
     private void toGrey(Mat src) {
-        if (src.channels() == 1)      src.copyTo(grey);
-        else if (src.channels() == 3) Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGR2GRAY);
-        else                          Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGRA2GRAY);
+        if (src.channels() == 1) {
+            // copyTo throws when grey already holds a crop of a different total
+            // size (it does not reallocate a non-empty destination). create()
+            // reshapes the existing native buffer in place — no Mat allocation —
+            // and is a no-op when the size/type already match.
+            grey.create(src.rows(), src.cols(), src.type());
+            src.copyTo(grey);
+        } else if (src.channels() == 3) {
+            Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGR2GRAY);
+        } else {
+            Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGRA2GRAY);
+        }
     }
 
     /**
@@ -269,7 +300,7 @@ public class CharTemplateClassifier {
     private Mat toGreyRef(Mat src) {
         if (src.channels() == 1) return src;
         if (src.channels() == 3) Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGR2GRAY);
-        else                     Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGRA2GRAY);
+        else Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGRA2GRAY);
         return grey;
     }
 
@@ -286,10 +317,12 @@ public class CharTemplateClassifier {
         return sum;
     }
 
-    /** Weighted L2 distance between two normalised central-moment feature vectors. */
+    /**
+     * Weighted L2 distance between two normalised central-moment feature vectors.
+     */
     private static double momentDistance(double[] a, double[] b) {
         // Variance features (indices 0-1) are most discriminative at low resolution.
-        double[] w = { 10.0, 10.0, 5.0, 2.0, 2.0, 1.0, 1.0, 3.0 };
+        double[] w = {10.0, 10.0, 5.0, 2.0, 2.0, 1.0, 1.0, 3.0};
         double sum = 0;
         for (int i = 0; i < a.length; i++) {
             double d = a[i] - b[i];

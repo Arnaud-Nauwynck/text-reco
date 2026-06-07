@@ -20,8 +20,8 @@ public class TessOcrView extends BorderPane implements JavaView<TessOcrViewModel
     @Getter
     private final BorderPane root = new BorderPane();
 
-    private final TextArea textArea    = new TextArea();
-    private final Label    statusLabel = new Label("OCR disabled.");
+    private final TextArea textArea = new TextArea();
+    private final Label statusLabel = new Label("OCR disabled.");
 
     public TessOcrView(TessOcrViewModel viewModel) {
         textArea.setEditable(false);

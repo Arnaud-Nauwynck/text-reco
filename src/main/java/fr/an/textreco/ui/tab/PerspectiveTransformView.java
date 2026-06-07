@@ -30,20 +30,20 @@ public class PerspectiveTransformView extends HBox implements JavaView<Perspecti
 
     private static final double DISPLAY_W = 480;
     private static final double DISPLAY_H = 360;
-    private static final double HANDLE_R  = 8;
+    private static final double HANDLE_R = 8;
 
     @Getter
     private final HBox root = new HBox(8);
 
-    private final ImageView rawView       = new ImageView();
-    private final Canvas    overlayCanvas = new Canvas(DISPLAY_W, DISPLAY_H);
-    private final ImageView warpedView    = new ImageView();
+    private final ImageView rawView = new ImageView();
+    private final Canvas overlayCanvas = new Canvas(DISPLAY_W, DISPLAY_H);
+    private final ImageView warpedView = new ImageView();
 
     // corner positions in display-pixel space; order: TL, TR, BR, BL
     private final double[] cx = {0, DISPLAY_W, DISPLAY_W, 0};
     private final double[] cy = {0, 0, DISPLAY_H, DISPLAY_H};
 
-    private final Circle[] handles      = new Circle[4];
+    private final Circle[] handles = new Circle[4];
     private final String[] cornerLabels = {"TL", "TR", "BR", "BL"};
 
     private final PerspectiveTransformProcessor processor;
@@ -51,12 +51,12 @@ public class PerspectiveTransformView extends HBox implements JavaView<Perspecti
     // actual rendered image size (may differ from DISPLAY_W/H due to aspect ratio)
     private double renderedW = DISPLAY_W;
     private double renderedH = DISPLAY_H;
-    private double offsetX   = 0;
-    private double offsetY   = 0;
+    private double offsetX = 0;
+    private double offsetY = 0;
 
     public PerspectiveTransformView(PerspectiveTransformViewModel viewModel) {
         this.processor = viewModel.getProcessor();
-        viewModel.rawImageProperty()        .addListener((obs, o, img) -> setRawImage(img));
+        viewModel.rawImageProperty().addListener((obs, o, img) -> setRawImage(img));
         viewModel.perspectiveImageProperty().addListener((obs, o, img) -> setWarpedImage(img));
 
         configureImageView(rawView);
@@ -66,7 +66,7 @@ public class PerspectiveTransformView extends HBox implements JavaView<Perspecti
         StackPane rawStack = new StackPane(rawView, overlay);
         rawStack.setAlignment(Pos.TOP_LEFT);
 
-        VBox rawPanel    = buildPanel("Source (drag corners)", rawStack);
+        VBox rawPanel = buildPanel("Source (drag corners)", rawStack);
         VBox warpedPanel = buildPanel("Warped output", warpedView);
 
         root.getChildren().addAll(rawPanel, warpedPanel);
@@ -175,8 +175,8 @@ public class PerspectiveTransformView extends HBox implements JavaView<Perspecti
             double scale = Math.min(DISPLAY_W / iw, DISPLAY_H / ih);
             renderedW = iw * scale;
             renderedH = ih * scale;
-            offsetX   = (DISPLAY_W - renderedW) / 2.0;
-            offsetY   = (DISPLAY_H - renderedH) / 2.0;
+            offsetX = (DISPLAY_W - renderedW) / 2.0;
+            offsetY = (DISPLAY_H - renderedH) / 2.0;
         }
     }
 

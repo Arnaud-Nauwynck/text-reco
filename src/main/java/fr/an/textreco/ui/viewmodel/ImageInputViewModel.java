@@ -20,10 +20,10 @@ import java.util.List;
 
 public class ImageInputViewModel implements ViewModel {
 
-    public static final String NOTIFICATION_OPEN_FILE   = "OPEN_FILE";
-    public static final String NOTIFICATION_SAVE_FILE   = "SAVE_FILE";
+    public static final String NOTIFICATION_OPEN_FILE = "OPEN_FILE";
+    public static final String NOTIFICATION_SAVE_FILE = "SAVE_FILE";
 
-    private final ProcessingContext  context;
+    private final ProcessingContext context;
     private final ProcessingPipeline pipeline;
 
     public final ObservableList<CameraDevice> cameras = FXCollections.observableArrayList();
@@ -34,28 +34,48 @@ public class ImageInputViewModel implements ViewModel {
     public final DelegateCommand saveFileCommand;
 
     public ImageInputViewModel(ProcessingContext context, ProcessingPipeline pipeline) {
-        this.context  = context;
+        this.context = context;
         this.pipeline = pipeline;
 
         toggleFreezeCommand = new DelegateCommand(() -> new Action() {
-            @Override protected void action() { pipeline.toggleFreeze(); }
+            @Override
+            protected void action() {
+                pipeline.toggleFreeze();
+            }
         });
 
         openFileCommand = new DelegateCommand(() -> new Action() {
-            @Override protected void action() { publish(NOTIFICATION_OPEN_FILE); }
+            @Override
+            protected void action() {
+                publish(NOTIFICATION_OPEN_FILE);
+            }
         });
 
         saveFileCommand = new DelegateCommand(() -> new Action() {
-            @Override protected void action() { publish(NOTIFICATION_SAVE_FILE); }
+            @Override
+            protected void action() {
+                publish(NOTIFICATION_SAVE_FILE);
+            }
         });
     }
 
     // ── Properties exposed to the View ────────────────────────────────────────
 
-    public ObjectProperty<WritableImage>      rawImageProperty()         { return context.rawImageProperty; }
-    public ObjectProperty<PreProcessingResult> preProcessingProperty()   { return context.preProcessingProperty; }
-    public ReadOnlyBooleanProperty frozenProperty()                      { return context.inputSource.frozenProperty(); }
-    public ObjectProperty<CameraDevice> selectedCameraProperty()         { return selectedCamera; }
+    public ObjectProperty<WritableImage> rawImageProperty() {
+        return context.rawImageProperty;
+    }
+
+    public ObjectProperty<PreProcessingResult> preProcessingProperty() {
+        return context.preProcessingProperty;
+    }
+
+    public ReadOnlyBooleanProperty frozenProperty() {
+        return context.inputSource.frozenProperty();
+    }
+
+    public ObjectProperty<CameraDevice> selectedCameraProperty() {
+        return selectedCamera;
+    }
 
     // ── Actions invoked by the View ───────────────────────────────────────────
 
@@ -84,5 +104,7 @@ public class ImageInputViewModel implements ViewModel {
         }
     }
 
-    public BooleanProperty frozenMutableProperty() { return context.inputSource.frozenProperty(); }
+    public BooleanProperty frozenMutableProperty() {
+        return context.inputSource.frozenProperty();
+    }
 }

@@ -11,14 +11,16 @@ public class EdgeDetectorProcessor implements FrameProcessor {
     private final EdgeDetectorSettings settings;
 
     // owned scratch state
-    private final FrameData        frame = new FrameData();
-    private final ScratchContext   ctx   = new ScratchContext();
+    private final FrameData frame = new FrameData();
+    private final ScratchContext ctx = new ScratchContext();
 
     public EdgeDetectorProcessor(EdgeDetectorSettings settings) {
         this.settings = settings;
     }
 
-    /** Runs edge detection on rawBgr. Result is in {@link #getProcessed()}. */
+    /**
+     * Runs edge detection on rawBgr. Result is in {@link #getProcessed()}.
+     */
     public void process(org.opencv.core.Mat rawBgr) {
         rawBgr.copyTo(frame.raw);
         Imgproc.cvtColor(frame.raw, frame.gray, Imgproc.COLOR_BGR2GRAY);
@@ -27,9 +29,13 @@ public class EdgeDetectorProcessor implements FrameProcessor {
         Imgproc.cvtColor(frame.processed, frame.processed, Imgproc.COLOR_GRAY2BGR);
     }
 
-    public org.opencv.core.Mat getProcessed() { return frame.processed; }
+    public org.opencv.core.Mat getProcessed() {
+        return frame.processed;
+    }
 
-    /** Legacy FrameProcessor interface — still used by PerspectiveTransformProcessor indirectly. */
+    /**
+     * Legacy FrameProcessor interface — still used by PerspectiveTransformProcessor indirectly.
+     */
     @Override
     public void process(FrameData f, ScratchContext c) {
         Imgproc.cvtColor(f.raw, f.gray, Imgproc.COLOR_BGR2GRAY);

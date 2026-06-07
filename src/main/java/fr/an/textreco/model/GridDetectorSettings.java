@@ -30,39 +30,49 @@ public class GridDetectorSettings implements ViewModel {
     // Force line-height
     // -------------------------------------------------------------------------
 
-    public final BooleanProperty forceLineH   = new SimpleBooleanProperty(false);
-    public final DoubleProperty  forcedLineH  = new SimpleDoubleProperty(28.0);
+    public final BooleanProperty forceLineH = new SimpleBooleanProperty(false);
+    public final DoubleProperty forcedLineH = new SimpleDoubleProperty(28.0);
 
     // -------------------------------------------------------------------------
     // Force char-width  (px value + convenience lineH/charW ratio)
     // -------------------------------------------------------------------------
 
-    /** When true, skip X-axis valley detection and use {@link #forcedCharWPx} directly. */
-    public final BooleanProperty forceCharWidth   = new SimpleBooleanProperty(false);
-    /** Ratio lineH/charW (e.g. 2.0 → charW = lineH/2). Kept in sync with px value by the view. */
-    public final DoubleProperty  forcedCharWRatio = new SimpleDoubleProperty(2.0);
-    /** Direct forced char width in pixels. Used when {@link #forceCharWidth} is true. */
-    public final DoubleProperty  forcedCharWPx    = new SimpleDoubleProperty(15.0);
+    /**
+     * When true, skip X-axis valley detection and use {@link #forcedCharWPx} directly.
+     */
+    public final BooleanProperty forceCharWidth = new SimpleBooleanProperty(false);
+    /**
+     * Ratio lineH/charW (e.g. 2.0 → charW = lineH/2). Kept in sync with px value by the view.
+     */
+    public final DoubleProperty forcedCharWRatio = new SimpleDoubleProperty(2.0);
+    /**
+     * Direct forced char width in pixels. Used when {@link #forceCharWidth} is true.
+     */
+    public final DoubleProperty forcedCharWPx = new SimpleDoubleProperty(15.0);
 
     // -------------------------------------------------------------------------
     // Force grid offsets
     // -------------------------------------------------------------------------
 
-    public final BooleanProperty forceLineY0  = new SimpleBooleanProperty(false);
-    public final DoubleProperty  forcedLineY0 = new SimpleDoubleProperty(0.0);
+    public final BooleanProperty forceLineY0 = new SimpleBooleanProperty(false);
+    public final DoubleProperty forcedLineY0 = new SimpleDoubleProperty(0.0);
 
-    public final BooleanProperty forceCharX0  = new SimpleBooleanProperty(false);
-    public final DoubleProperty  forcedCharX0 = new SimpleDoubleProperty(0.0);
+    public final BooleanProperty forceCharX0 = new SimpleBooleanProperty(false);
+    public final DoubleProperty forcedCharX0 = new SimpleDoubleProperty(0.0);
 
     // -------------------------------------------------------------------------
     // Force number of lines / columns
     // -------------------------------------------------------------------------
 
-    /** When true, override the auto-detected line count with {@link #forcedLineCount}. */
-    public final BooleanProperty forceLineCount  = new SimpleBooleanProperty(false);
+    /**
+     * When true, override the auto-detected line count with {@link #forcedLineCount}.
+     */
+    public final BooleanProperty forceLineCount = new SimpleBooleanProperty(false);
     public final IntegerProperty forcedLineCount = new SimpleIntegerProperty(24);
 
-    /** When true, override the auto-detected column count with {@link #forcedColCount}. */
-    public final BooleanProperty forceColCount   = new SimpleBooleanProperty(false);
-    public final IntegerProperty forcedColCount  = new SimpleIntegerProperty(80);
+    /**
+     * When true, override the auto-detected column count with {@link #forcedColCount}.
+     */
+    public final BooleanProperty forceColCount = new SimpleBooleanProperty(false);
+    public final IntegerProperty forcedColCount = new SimpleIntegerProperty(80);
 }

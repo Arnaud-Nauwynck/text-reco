@@ -3,6 +3,7 @@ package fr.an.textreco.processing;
 import fr.an.textreco.model.CameraDevice;
 import fr.an.textreco.model.InputSource;
 import fr.an.textreco.util.FxImageUtils.ImageBuffer;
+import fr.an.textreco.util.MatFacade;
 import javafx.scene.image.WritableImage;
 import org.opencv.core.Mat;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -23,8 +24,8 @@ public class CameraCapture {
 
     // owned resources — allocated in open(), released in release()
     private VideoCapture capture;
-    private final Mat raw         = new Mat();
-    private final Mat snapshot    = new Mat();
+    private final Mat raw = MatFacade.alloc("CameraCapture.raw");
+    private final Mat snapshot = MatFacade.alloc("CameraCapture.snapshot");
     private final ImageBuffer rawBuf = new ImageBuffer();
 
     private volatile boolean pendingCameraChange = false;
@@ -43,8 +44,8 @@ public class CameraCapture {
 
     public void release() {
         if (capture != null) capture.release();
-        raw.release();
-        snapshot.release();
+        MatFacade.release(raw, "CameraCapture.raw");
+        MatFacade.release(snapshot, "CameraCapture.snapshot");
         rawBuf.release();
     }
 
@@ -71,19 +72,31 @@ public class CameraCapture {
             return true;
         }
         if (inputSource.isFrozen()) {
-            if (raw.empty()) { Thread.sleep(20); return false; }
+            if (raw.empty()) {
+                Thread.sleep(20);
+                return false;
+            }
             return true;
         }
         capture.read(raw);
-        if (raw.empty()) { Thread.sleep(5); return false; }
+        if (raw.empty()) {
+            Thread.sleep(5);
+            return false;
+        }
         raw.copyTo(snapshot);
         return true;
     }
 
-    /** Returns the current raw Mat (valid until the next readFrame() call). */
-    public Mat getRaw() { return raw; }
+    /**
+     * Returns the current raw Mat (valid until the next readFrame() call).
+     */
+    public Mat getRaw() {
+        return raw;
+    }
 
-    /** Converts the raw frame to a WritableImage (BGR→RGB). */
+    /**
+     * Converts the raw frame to a WritableImage (BGR→RGB).
+     */
     public WritableImage toWritableImage() {
         return rawBuf.update(raw);
     }
@@ -119,8 +132,8 @@ public class CameraCapture {
             Thread t = new Thread(() -> {
                 VideoCapture vc = new VideoCapture(idx, Videoio.CAP_DSHOW);
                 if (vc.isOpened()) {
-                    int w      = (int) vc.get(Videoio.CAP_PROP_FRAME_WIDTH);
-                    int h      = (int) vc.get(Videoio.CAP_PROP_FRAME_HEIGHT);
+                    int w = (int) vc.get(Videoio.CAP_PROP_FRAME_WIDTH);
+                    int h = (int) vc.get(Videoio.CAP_PROP_FRAME_HEIGHT);
                     double fps = vc.get(Videoio.CAP_PROP_FPS);
                     vc.release();
                     holder[0] = new CameraDevice(idx, "Camera " + idx, w, h, fps);
@@ -130,7 +143,10 @@ public class CameraCapture {
             });
             t.setDaemon(true);
             t.start();
-            try { t.join(timeoutMs); } catch (InterruptedException ignored) {}
+            try {
+                t.join(timeoutMs);
+            } catch (InterruptedException ignored) {
+            }
             if (holder[0] != null) {
                 devices.add(holder[0]);
             } else {

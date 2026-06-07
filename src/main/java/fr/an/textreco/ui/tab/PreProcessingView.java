@@ -14,23 +14,23 @@ import lombok.Getter;
 
 public class PreProcessingView extends VBox implements JavaView<PreProcessingViewModel> {
 
-    private static final double BIG_W   = 320;
-    private static final double BIG_H   = 240;
+    private static final double BIG_W = 320;
+    private static final double BIG_H = 240;
     private static final double MORPH_W = 200;
     private static final double MORPH_H = 150;
 
     @Getter
     private final VBox root = new VBox(8);
 
-    private final ImageView binaryView    = imageView(BIG_W,   BIG_H);
-    private final ImageView morphHView    = imageView(MORPH_W, MORPH_H);
-    private final ImageView morphVView    = imageView(MORPH_W, MORPH_H);
-    private final ImageView morphFwdView  = imageView(MORPH_W, MORPH_H);
-    private final ImageView morphBwdView  = imageView(MORPH_W, MORPH_H);
-    private final ImageView closeHView    = imageView(MORPH_W, MORPH_H);
-    private final ImageView closeVView    = imageView(MORPH_W, MORPH_H);
-    private final ImageView closeFwdView  = imageView(MORPH_W, MORPH_H);
-    private final ImageView closeBwdView  = imageView(MORPH_W, MORPH_H);
+    private final ImageView binaryView = imageView(BIG_W, BIG_H);
+    private final ImageView morphHView = imageView(MORPH_W, MORPH_H);
+    private final ImageView morphVView = imageView(MORPH_W, MORPH_H);
+    private final ImageView morphFwdView = imageView(MORPH_W, MORPH_H);
+    private final ImageView morphBwdView = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeHView = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeVView = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeFwdView = imageView(MORPH_W, MORPH_H);
+    private final ImageView closeBwdView = imageView(MORPH_W, MORPH_H);
 
     public PreProcessingView(PreProcessingViewModel viewModel) {
         viewModel.preProcessingProperty().addListener((obs, o, r) -> onResult(r));
@@ -41,16 +41,16 @@ public class PreProcessingView extends VBox implements JavaView<PreProcessingVie
         topRow.setAlignment(Pos.TOP_LEFT);
 
         HBox morphRow = new HBox(8,
-                panel("Open  —",  morphHView),
-                panel("Open  |",  morphVView),
-                panel("Open  /",  morphFwdView),
+                panel("Open  —", morphHView),
+                panel("Open  |", morphVView),
+                panel("Open  /", morphFwdView),
                 panel("Open  \\", morphBwdView));
         morphRow.setAlignment(Pos.TOP_LEFT);
 
         HBox closeRow = new HBox(8,
-                panel("Close  —",  closeHView),
-                panel("Close  |",  closeVView),
-                panel("Close  /",  closeFwdView),
+                panel("Close  —", closeHView),
+                panel("Close  |", closeVView),
+                panel("Close  /", closeFwdView),
                 panel("Close  \\", closeBwdView));
         closeRow.setAlignment(Pos.TOP_LEFT);
 
@@ -62,13 +62,13 @@ public class PreProcessingView extends VBox implements JavaView<PreProcessingVie
 
     private void onResult(PreProcessingResult r) {
         if (r == null) return;
-        binaryView  .setImage(r.binaryImage());
-        morphHView  .setImage(r.morphHoriz());
-        morphVView  .setImage(r.morphVert());
+        binaryView.setImage(r.binaryImage());
+        morphHView.setImage(r.morphHoriz());
+        morphVView.setImage(r.morphVert());
         morphFwdView.setImage(r.morphDiagFwd());
         morphBwdView.setImage(r.morphDiagBwd());
-        closeHView  .setImage(r.closeHoriz());
-        closeVView  .setImage(r.closeVert());
+        closeHView.setImage(r.closeHoriz());
+        closeVView.setImage(r.closeVert());
         closeFwdView.setImage(r.closeDiagFwd());
         closeBwdView.setImage(r.closeDiagBwd());
     }

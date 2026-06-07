@@ -1,21 +1,22 @@
 package fr.an.textreco.model;
 
+import fr.an.textreco.util.MatFacade;
 import org.opencv.core.Mat;
 
 public class FrameData {
 
-    public final Mat raw = new Mat();
+    public final Mat raw = MatFacade.alloc("FrameData.raw");
 
-    public final Mat gray = new Mat();
+    public final Mat gray = MatFacade.alloc("FrameData.gray");
 
-    public final Mat processed = new Mat();
+    public final Mat processed = MatFacade.alloc("FrameData.processed");
 
     public FrameData() {
     }
 
     public void release() {
-        raw.release();
-        gray.release();
-        processed.release();
+        MatFacade.release(raw, "FrameData.raw");
+        MatFacade.release(gray, "FrameData.gray");
+        MatFacade.release(processed, "FrameData.processed");
     }
 }

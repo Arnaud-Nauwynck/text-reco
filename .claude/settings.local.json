@@ -26,7 +26,16 @@
       "WebFetch(domain:sialcasa.github.io)",
       "WebFetch(domain:javadoc.io)",
       "Bash(javap *)",
-      "Bash(jar --describe-module --file ~/.m2/repository/de/saxsys/mvvmfx/1.8.0/mvvmfx-1.8.0.jar)"
+      "Bash(jar --describe-module --file ~/.m2/repository/de/saxsys/mvvmfx/1.8.0/mvvmfx-1.8.0.jar)",
+      "Bash(Get-ChildItem -Path \"C:\\\\arn\\\\devPerso\\\\my-github\\\\text-reco\\\\src\\\\main\\\\java\\\\fr\\\\an\\\\textreco\" -Recurse -Include \"*.java\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(claude mcp *)",
+      "mcp__javalens__health_check",
+      "mcp__javalens__load_project",
+      "mcp__javalens__analyze_type",
+      "mcp__javalens__find_possible_bugs",
+      "mcp__javalens__get_diagnostics",
+      "mcp__javalens__find_references"
     ]
   }
 }

@@ -15,9 +15,9 @@ public class PreProcessingSettings implements ViewModel {
     public final ObjectProperty<BinarizationMethod> binarizationMethod =
             new SimpleObjectProperty<>(BinarizationMethod.TOPHAT);
 
-    public final IntegerProperty tophatRadius    = new SimpleIntegerProperty(12);
+    public final IntegerProperty tophatRadius = new SimpleIntegerProperty(12);
     public final IntegerProperty tophatThreshold = new SimpleIntegerProperty(20);
-    public final IntegerProperty adaptiveBlock   = new SimpleIntegerProperty(31);
-    public final IntegerProperty adaptiveC       = new SimpleIntegerProperty(10);
-    public final IntegerProperty seHalfLen       = new SimpleIntegerProperty(7);
+    public final IntegerProperty adaptiveBlock = new SimpleIntegerProperty(31);
+    public final IntegerProperty adaptiveC = new SimpleIntegerProperty(10);
+    public final IntegerProperty seHalfLen = new SimpleIntegerProperty(7);
 }

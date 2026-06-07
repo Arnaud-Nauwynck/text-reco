@@ -11,7 +11,9 @@ import org.opencv.core.Mat;
  */
 public class InputSource {
 
-    /** Camera device index used when no file is loaded. */
+    /**
+     * Camera device index used when no file is loaded.
+     */
     public volatile int cameraIndex = 0;
 
     /**
@@ -22,9 +24,15 @@ public class InputSource {
      */
     private final BooleanProperty frozen = new SimpleBooleanProperty(false);
 
-    public BooleanProperty frozenProperty() { return frozen; }
-    public boolean isFrozen()               { return frozen.get(); }
-    public void    setFrozen(boolean v)     {
+    public BooleanProperty frozenProperty() {
+        return frozen;
+    }
+
+    public boolean isFrozen() {
+        return frozen.get();
+    }
+
+    public void setFrozen(boolean v) {
         frozen.set(v);
     }
 
@@ -41,7 +49,9 @@ public class InputSource {
         this.loadedMat = mat;
     }
 
-    /** Atomically returns a clone of the loaded Mat and clears it (one-shot consume). */
+    /**
+     * Atomically returns a clone of the loaded Mat and clears it (one-shot consume).
+     */
     public synchronized Mat cloneAndClearLoadedMat() {
         if (loadedMat == null) {
             return null;

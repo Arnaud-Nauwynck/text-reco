@@ -29,8 +29,8 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
 
     private static final double LINE_VIEW_W = 800;
     private static final double LINE_VIEW_H = 80;
-    private static final double HIST_W      = LINE_VIEW_W;
-    private static final double HIST_H      = 80;
+    private static final double HIST_W = LINE_VIEW_W;
+    private static final double HIST_H = 80;
     private static final double CHAR_VIEW_W = 160;
     private static final double CHAR_VIEW_H = 160;
 
@@ -38,40 +38,48 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
     private final VBox root = new VBox(8);
 
     // --- controls ---
-    private final Slider lineSlider     = new Slider(0, 0, 0);
-    private final Label  lineValLabel   = monoLabel("—");
-    private final Slider colSlider      = new Slider(0, 0, 0);
-    private final Label  colValLabel    = monoLabel("—");
-    private final Slider offsetSlider   = new Slider(-50, 50, 0);
-    private final Label  offsetValLabel = monoLabel("0");
+    private final Slider lineSlider = new Slider(0, 0, 0);
+    private final Label lineValLabel = monoLabel("—");
+    private final Slider colSlider = new Slider(0, 0, 0);
+    private final Label colValLabel = monoLabel("—");
+    private final Slider offsetSlider = new Slider(-50, 50, 0);
+    private final Label offsetValLabel = monoLabel("0");
 
     // --- line image + column grid overlay ---
-    private final ImageView lineView    = new ImageView();
-    private final Canvas    lineOverlay = new Canvas(LINE_VIEW_W, LINE_VIEW_H);
+    private final ImageView lineView = new ImageView();
+    private final Canvas lineOverlay = new Canvas(LINE_VIEW_W, LINE_VIEW_H);
 
     // --- vertical histogram of selected line ---
     private final Canvas histCanvas = new Canvas(HIST_W, HIST_H);
 
     // --- zoomed char crop ---
-    private final ImageView charView        = new ImageView();
-    private final Label     infoLabel       = monoLabel("");
-    private final Label     classifiedLabel = monoLabel("");
-    private final Label     huMomentsLabel  = monoLabel("");
+    private final ImageView charView = new ImageView();
+    private final Label infoLabel = monoLabel("");
+    private final Label classifiedLabel = monoLabel("");
+    private final Label huMomentsLabel = monoLabel("");
 
     // --- state ---
-    private TextLineExtractionResult lastResult  = null;
-    private GridDetectionResult      lastGrid    = null;
-    private PreProcessingResult      lastPreProc = null;
-    private int[]                    colStarts   = new int[0];
-    private int                      charWidth   = 0;
+    private TextLineExtractionResult lastResult = null;
+    private GridDetectionResult lastGrid = null;
+    private PreProcessingResult lastPreProc = null;
+    private int[] colStarts = new int[0];
+    private int charWidth = 0;
 
     private final CharTemplateClassifier classifier;
 
     public ColumnsDetectionView(ColumnsDetectionViewModel viewModel) {
         this.classifier = viewModel.getCharClassifier();
-        viewModel.textLinesProperty()    .addListener((obs, o, r) -> { if (r != null) onResult(r); });
-        viewModel.gridDetectionProperty().addListener((obs, o, r) -> { lastGrid = r;    onGridOrPreProc(); });
-        viewModel.preProcessingProperty().addListener((obs, o, r) -> { lastPreProc = r; onGridOrPreProc(); });
+        viewModel.textLinesProperty().addListener((obs, o, r) -> {
+            if (r != null) onResult(r);
+        });
+        viewModel.gridDetectionProperty().addListener((obs, o, r) -> {
+            lastGrid = r;
+            onGridOrPreProc();
+        });
+        viewModel.preProcessingProperty().addListener((obs, o, r) -> {
+            lastPreProc = r;
+            onGridOrPreProc();
+        });
 
         lineView.setPreserveRatio(true);
         lineView.setFitWidth(LINE_VIEW_W);
@@ -115,8 +123,8 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
             refreshDisplay();
         });
 
-        HBox lineRow   = hrow(styledLabel("Line index:"),  lineSlider,   lineValLabel);
-        HBox colRow    = hrow(styledLabel("Col index:"),   colSlider,    colValLabel);
+        HBox lineRow = hrow(styledLabel("Line index:"), lineSlider, lineValLabel);
+        HBox colRow = hrow(styledLabel("Col index:"), colSlider, colValLabel);
         HBox offsetRow = hrow(styledLabel("Offset (px):"), offsetSlider, offsetValLabel);
 
         StackPane lineStack = new StackPane(lineView, lineOverlay);
@@ -168,10 +176,10 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
         if (lastGrid == null || lastPreProc == null) return;
 
         double charWd = lastGrid.bestCharW();
-        double x0d    = lastGrid.bestCharX0();
-        int fw    = lastPreProc.frameWidth();
+        double x0d = lastGrid.bestCharX0();
+        int fw = lastPreProc.frameWidth();
         int charW = (int) Math.max(1, Math.round(charWd));
-        int x0    = (int) Math.round(x0d);
+        int x0 = (int) Math.round(x0d);
 
         // rebuild colStarts from the detected periodic grid
         int count = fw > 0 && charW > 0 ? (fw - x0 + charW - 1) / charW : 0;
@@ -207,13 +215,13 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
         gc.fillRect(0, 0, HIST_W, HIST_H);
         if (lastPreProc == null) return;
 
-        float[] sums    = lastPreProc.vColSums();
-        int[]   valleys = lastPreProc.vValleys();
-        int     fw      = lastPreProc.frameWidth();
+        float[] sums = lastPreProc.vColSums();
+        int[] valleys = lastPreProc.vValleys();
+        int fw = lastPreProc.frameWidth();
         if (sums == null || sums.length == 0 || fw == 0) return;
 
         double scaleX = HIST_W / (double) fw;
-        double barH   = HIST_H - 4;
+        double barH = HIST_H - 4;
 
         float globalMax = 1f;
         for (float v : sums) if (v > globalMax) globalMax = v;
@@ -245,7 +253,7 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
         // grid lines from detected charWidth — purple
         if (lastGrid != null) {
             double charW = lastGrid.bestCharW();
-            double x0    = lastGrid.bestCharX0();
+            double x0 = lastGrid.bestCharX0();
             gc.setStroke(Color.rgb(180, 100, 255, 0.7));
             gc.setLineWidth(1.0);
             for (double x = x0; x < fw; x += charW) {
@@ -293,10 +301,10 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
 
         // image → display scaling (preserveRatio fit)
         double scaleX = Math.min(LINE_VIEW_W / imgW, LINE_VIEW_H / imgH);
-        double rendW  = imgW * scaleX;
-        double rendH  = imgH * scaleX;
-        double offX   = (LINE_VIEW_W - rendW) / 2.0;
-        double offY   = (LINE_VIEW_H - rendH) / 2.0;
+        double rendW = imgW * scaleX;
+        double rendH = imgH * scaleX;
+        double offX = (LINE_VIEW_W - rendW) / 2.0;
+        double offY = (LINE_VIEW_H - rendH) / 2.0;
 
         int offset = (int) offsetSlider.getValue();
 
@@ -314,12 +322,12 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
                 Math.max(0, Math.min(colSlider.getValue(), colStarts.length - 1)));
 
         if (colIdx >= 0 && colIdx < colStarts.length) {
-            int cxPx  = colStarts[colIdx] + offset;
+            int cxPx = colStarts[colIdx] + offset;
             int cxEnd = (colIdx + 1 < colStarts.length)
                     ? colStarts[colIdx + 1] + offset
                     : cxPx + charWidth;
 
-            double px1 = offX + cxPx  * scaleX;
+            double px1 = offX + cxPx * scaleX;
             double px2 = offX + cxEnd * scaleX;
 
             // highlight band
@@ -333,11 +341,11 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
 
             // crop char from line image
             int cropX = Math.max(0, cxPx);
-            int cropW = Math.max(1, Math.min(cxEnd - cxPx, imgW - cropX));
-            if (cropW > 0 && imgH > 0) {
+            int cropW = Math.min(Math.max(1, cxEnd - cxPx), imgW - cropX);
+            if (cropW > 0 && imgH > 0 && cropX < imgW) {
+                // WritableImage needed for charView display only; Mat built without intermediate copy
                 WritableImage cropImg = new WritableImage(lineImg.getPixelReader(), cropX, 0, cropW, imgH);
                 charView.setImage(cropImg);
-                // Classify the crop and display Hu moments
                 org.opencv.core.Mat greyMat = fr.an.textreco.util.FxImageUtils.writableImageToGreyMat(cropImg);
                 try {
                     CharTemplateClassifier.Result r = classifier.classify(greyMat);
@@ -351,8 +359,8 @@ public class ColumnsDetectionView extends VBox implements JavaView<ColumnsDetect
 
             infoLabel.setText(String.format(
                     "Line %d  y=%d–%d  h=%dpx%n" +
-                    "Col %d/%d  x=%d–%d  w=%dpx%n" +
-                    "charWidth (median)=%dpx  offset=%dpx",
+                            "Col %d/%d  x=%d–%d  w=%dpx%n" +
+                            "charWidth (median)=%dpx  offset=%dpx",
                     lineIdx, line.rowStart(), line.rowEnd(), line.height(),
                     colIdx, colStarts.length, cxPx, cxEnd, cropW,
                     charWidth, offset));

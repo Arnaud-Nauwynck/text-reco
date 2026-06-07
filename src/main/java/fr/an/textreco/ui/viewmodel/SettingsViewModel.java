@@ -9,15 +9,15 @@ import fr.an.textreco.model.ProcessingContext;
 
 public class SettingsViewModel implements ViewModel {
 
-    public final AppSettings           appSettings;
-    public final EdgeDetectorSettings  edgeDetectorSettings;
+    public final AppSettings appSettings;
+    public final EdgeDetectorSettings edgeDetectorSettings;
     public final PreProcessingSettings preProcessingSettings;
-    public final GridDetectorSettings  gridDetectorSettings;
+    public final GridDetectorSettings gridDetectorSettings;
 
     public SettingsViewModel(ProcessingContext context) {
-        this.appSettings           = context.appSettings;
-        this.edgeDetectorSettings  = context.edgeDetectorSettings;
+        this.appSettings = context.appSettings;
+        this.edgeDetectorSettings = context.edgeDetectorSettings;
         this.preProcessingSettings = context.preProcessingSettings;
-        this.gridDetectorSettings  = context.gridDetectorSettings;
+        this.gridDetectorSettings = context.gridDetectorSettings;
     }
 }

@@ -1,14 +1,12 @@
 package fr.an.textreco.ui.tab;
 
 import de.saxsys.mvvmfx.JavaView;
-import fr.an.textreco.model.CorrelationGridDetectionResult;
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.GridDetectorMode;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.model.GridDetectorSettings;
-import fr.an.textreco.model.CorrelationGridDetectorSettings;
 import fr.an.textreco.ui.viewmodel.GridDetectViewModel;
 import javafx.beans.property.IntegerProperty;
 import javafx.geometry.Insets;
@@ -40,100 +38,87 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
     private static final double PREVIEW_W = 520;
     private static final double PREVIEW_H = 400;
-    private static final double HIST_W    = 120;
-    private static final double VHIST_H   = 80;
-    private static final double ACC_W     = 300;
-    private static final double ACC_H     = 90;
+    private static final double HIST_W = 120;
+    private static final double VHIST_H = 80;
+    private static final double ACC_W = 300;
+    private static final double ACC_H = 90;
 
     @Getter
     private final HBox root = new HBox(8);
 
     // --- left panel ---
-    private final ImageView warpedView  = new ImageView();
-    private final Canvas    overlay     = new Canvas(PREVIEW_W, PREVIEW_H);
-    private final Canvas    histCanvas  = new Canvas(HIST_W, PREVIEW_H);
-    private final Canvas    vHistCanvas = new Canvas(PREVIEW_W, VHIST_H);
+    private final ImageView warpedView = new ImageView();
+    private final Canvas overlay = new Canvas(PREVIEW_W, PREVIEW_H);
+    private final Canvas histCanvas = new Canvas(HIST_W, PREVIEW_H);
+    private final Canvas vHistCanvas = new Canvas(PREVIEW_W, VHIST_H);
 
     // --- right panel ---
     private final Label lineCountLabel = statLabel("Lines: —");
-    private final Label gridLabel      = statLabel("Grid: —");
-    private final Label lineHLabel     = statLabel("lineH: —");
-    private final Label charWLabel     = statLabel("charW: —");
+    private final Label gridLabel = statLabel("Grid: —");
+    private final Label lineHLabel = statLabel("lineH: —");
+    private final Label charWLabel = statLabel("charW: —");
 
     // diff-histograms (gap frequency)
     private final Canvas diffHistYCanvas = new Canvas(ACC_W, ACC_H);
     private final Canvas diffHistXCanvas = new Canvas(ACC_W, ACC_H);
 
     // Hough offset charts
-    private final Canvas accY0Canvas  = new Canvas(ACC_W, ACC_H);
-    private final Canvas accX0Canvas  = new Canvas(ACC_W, ACC_H);
+    private final Canvas accY0Canvas = new Canvas(ACC_W, ACC_H);
+    private final Canvas accX0Canvas = new Canvas(ACC_W, ACC_H);
 
-    private final VBox       lineList  = new VBox(3);
+    private final VBox lineList = new VBox(3);
     private final ScrollPane lineScroll;
 
     // --- forced periods ---
-    private final CheckBox        forceLineHCb       = styledCheckBox("Force lineH");
-    private final Spinner<Double> forcedLineHSp      = dblSpinner(1.0, 200.0, 28.0);
-    private final CheckBox        forceCharWCb       = styledCheckBox("Force charW");
+    private final CheckBox forceLineHCb = styledCheckBox("Force lineH");
+    private final Spinner<Double> forcedLineHSp = dblSpinner(1.0, 200.0, 28.0);
+    private final CheckBox forceCharWCb = styledCheckBox("Force charW");
     private final Spinner<Double> forcedCharWRatioSp = dblSpinner(0.1, 20.0, 2.0);
-    private final Spinner<Double> forcedCharWPxSp    = dblSpinner(0.1, 200.0, 15.0);
+    private final Spinner<Double> forcedCharWPxSp = dblSpinner(0.1, 200.0, 15.0);
 
     // --- forced offsets ---
-    private final CheckBox        forceLineY0Cb  = styledCheckBox("Force y0");
+    private final CheckBox forceLineY0Cb = styledCheckBox("Force y0");
     private final Spinner<Double> forcedLineY0Sp = dblSpinner(0.0, 500.0, 0.0);
-    private final CheckBox        forceCharX0Cb  = styledCheckBox("Force x0");
+    private final CheckBox forceCharX0Cb = styledCheckBox("Force x0");
     private final Spinner<Double> forcedCharX0Sp = dblSpinner(0.0, 500.0, 0.0);
 
     // --- forced line / column counts ---
-    private final Label            detectedLineCountLabel = statLabel("Lines detected: —");
-    private final Label            detectedColCountLabel  = statLabel("Cols  detected: —");
-    private final CheckBox         forceLineCountCb  = styledCheckBox("Force line count");
+    private final Label detectedLineCountLabel = statLabel("Lines detected: —");
+    private final Label detectedColCountLabel = statLabel("Cols  detected: —");
+    private final CheckBox forceLineCountCb = styledCheckBox("Force line count");
     private final Spinner<Integer> forcedLineCountSp = intSpinner(1, 500, 24);
-    private final CheckBox         forceColCountCb   = styledCheckBox("Force col count");
-    private final Spinner<Integer> forcedColCountSp  = intSpinner(1, 500, 80);
+    private final CheckBox forceColCountCb = styledCheckBox("Force col count");
+    private final Spinner<Integer> forcedColCountSp = intSpinner(1, 500, 80);
 
     // --- mode selector ---
-    private final ToggleGroup  modeGroup      = new ToggleGroup();
-    private final RadioButton  valleyRadio    = styledRadio("Valley / Hough",  modeGroup);
-    private final RadioButton  corrRadio      = styledRadio("Correlation",      modeGroup);
+    private final ToggleGroup modeGroup = new ToggleGroup();
+    private final RadioButton valleyRadio = styledRadio("Valley / Hough", modeGroup);
+    private final RadioButton corrRadio = styledRadio("Correlation", modeGroup);
 
-    // --- correlation-specific panel ---
-    private static final double PROJ_W = ACC_W * 2 + 8;
-    private static final double PROJ_H = ACC_H;
-    private final Canvas corrProjCanvas   = new Canvas(PROJ_W, PROJ_H);
-    private final Label  corrLineHLabel   = statLabel("lineH: —");
-    private final Label  corrPhaseLabel   = statLabel("phase: —");
-    private final Spinner<Integer> corrMinHSp   = intSpinner(1, 200, 8);
-    private final Spinner<Integer> corrMaxHSp   = intSpinner(1, 200, 40);
-    private final Spinner<Double>  corrAlphaSp  = dblSpinner(0.01, 1.0, 0.15);
-    private javafx.scene.Node corrPanel; // built lazily in constructor
-
-    private GridDetectionResult lastGrid    = null;
+    private GridDetectionResult lastGrid = null;
     private PreProcessingResult lastPreProc = null;
 
     public GridDetectView(GridDetectViewModel viewModel) {
-        viewModel.preProcessingProperty()            .addListener((obs, o, r) -> onPreProcessing(r));
-        viewModel.textLinesProperty()                .addListener((obs, o, r) -> { if (r != null) onResult(r); });
-        viewModel.gridDetectionProperty()            .addListener((obs, o, r) -> { lastGrid = r; onGrid(r); });
-        viewModel.correlationGridDetectionProperty() .addListener((obs, o, r) -> onCorrelationResult(r));
+        viewModel.preProcessingProperty().addListener((obs, o, r) -> onPreProcessing(r));
+        viewModel.textLinesProperty().addListener((obs, o, r) -> {
+            if (r != null) onResult(r);
+        });
+        viewModel.gridDetectionProperty().addListener((obs, o, r) -> {
+            lastGrid = r;
+            onGrid(r);
+        });
 
         // mode radio buttons wired to model
         valleyRadio.setSelected(viewModel.gridDetectorMode().get() == GridDetectorMode.VALLEY);
-        corrRadio  .setSelected(viewModel.gridDetectorMode().get() == GridDetectorMode.CORRELATION);
+        corrRadio.setSelected(viewModel.gridDetectorMode().get() == GridDetectorMode.CORRELATION);
         modeGroup.selectedToggleProperty().addListener((obs, o, n) -> {
-            if (n == corrRadio)   viewModel.gridDetectorMode().set(GridDetectorMode.CORRELATION);
-            else                  viewModel.gridDetectorMode().set(GridDetectorMode.VALLEY);
+            if (n == corrRadio) viewModel.gridDetectorMode().set(GridDetectorMode.CORRELATION);
+            else viewModel.gridDetectorMode().set(GridDetectorMode.VALLEY);
         });
         viewModel.gridDetectorMode().addListener((obs, o, n) -> {
             valleyRadio.setSelected(n == GridDetectorMode.VALLEY);
-            corrRadio  .setSelected(n == GridDetectorMode.CORRELATION);
+            corrRadio.setSelected(n == GridDetectorMode.CORRELATION);
         });
-
-        // correlation settings spinners
-        CorrelationGridDetectorSettings cs = viewModel.getCorrelationGridDetectorSettings();
-        bindIntSpinner(corrMinHSp,  cs.minLineHeight);
-        bindIntSpinner(corrMaxHSp,  cs.maxLineHeight);
-        bindDblSpinner(corrAlphaSp, cs.smoothingAlpha);
 
         GridDetectorSettings gs = viewModel.getGridDetectorSettings();
 
@@ -181,7 +166,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         previewStack.setAlignment(Pos.TOP_LEFT);
         previewStack.setMaxSize(PREVIEW_W, PREVIEW_H);
 
-        histCanvas .setStyle("-fx-background-color: #1a1a1a;");
+        histCanvas.setStyle("-fx-background-color: #1a1a1a;");
         vHistCanvas.setStyle("-fx-background-color: #1a1a1a;");
 
         HBox previewAndHist = new HBox(2, previewStack, histCanvas);
@@ -191,23 +176,23 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
         // right: diff-histograms + offset charts in 2×2
         HBox chartRow1 = new HBox(8,
-                buildPanel("Gap freq lineH (→ period)",  diffHistYCanvas),
-                buildPanel("Gap freq charW (→ period)",  diffHistXCanvas));
+                buildPanel("Gap freq lineH (→ period)", diffHistYCanvas),
+                buildPanel("Gap freq charW (→ period)", diffHistXCanvas));
         HBox chartRow2 = new HBox(8,
-                buildPanel("Y offset (Hough min)",  accY0Canvas),
-                buildPanel("X offset (Hough min)",  accX0Canvas));
+                buildPanel("Y offset (Hough min)", accY0Canvas),
+                buildPanel("X offset (Hough min)", accX0Canvas));
         chartRow1.setAlignment(Pos.TOP_LEFT);
         chartRow2.setAlignment(Pos.TOP_LEFT);
 
-        HBox forceLineHRow  = hrow(forceLineHCb, forcedLineHSp, styledLabel("px"));
-        HBox forceCharWRow  = hrow(forceCharWCb,
+        HBox forceLineHRow = hrow(forceLineHCb, forcedLineHSp, styledLabel("px"));
+        HBox forceCharWRow = hrow(forceCharWCb,
                 styledLabel("lineH/charW ="), forcedCharWRatioSp,
                 styledLabel("  charW ="), forcedCharWPxSp, styledLabel("px"));
         HBox forceOffsetRow = hrow(
                 forceLineY0Cb, forcedLineY0Sp, styledLabel("px   "),
                 forceCharX0Cb, forcedCharX0Sp, styledLabel("px"));
         HBox forceLineCountRow = hrow(detectedLineCountLabel, forceLineCountCb, forcedLineCountSp);
-        HBox forceColCountRow  = hrow(detectedColCountLabel,  forceColCountCb,  forcedColCountSp);
+        HBox forceColCountRow = hrow(detectedColCountLabel, forceColCountCb, forcedColCountSp);
 
         VBox valleySettingsBox = new VBox(4,
                 lineCountLabel, gridLabel, lineHLabel, charWLabel,
@@ -215,7 +200,12 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
                 forceLineCountRow, forceColCountRow,
                 chartRow1, chartRow2);
 
-        corrPanel = buildCorrelationPanel();
+        // In CORRELATION mode the detailed views live in their own tabs
+        // (Line Height / Char Width / Line Offset / Column Offset).
+        Label corrHint = statLabel(
+                "Correlation mode — see the Line Height / Char Width /\n"
+                + "Line Offset / Column Offset tabs for details.");
+        corrHint.setWrapText(true);
 
         lineScroll = new ScrollPane(lineList);
         lineScroll.setFitToWidth(true);
@@ -227,14 +217,14 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         VBox rightContent = new VBox(6,
                 modeRow,
                 valleySettingsBox,
-                corrPanel,
+                corrHint,
                 sectionLabel("Extracted Lines"), lineScroll);
         VBox.setVgrow(lineScroll, javafx.scene.layout.Priority.ALWAYS);
         rightContent.setStyle("-fx-background-color: #1e1e1e;");
 
         // show/hide the detector-specific panels based on mode
-        corrPanel       .visibleProperty().bind(viewModel.gridDetectorMode().isEqualTo(GridDetectorMode.CORRELATION));
-        corrPanel       .managedProperty().bind(corrPanel.visibleProperty());
+        corrHint.visibleProperty().bind(viewModel.gridDetectorMode().isEqualTo(GridDetectorMode.CORRELATION));
+        corrHint.managedProperty().bind(corrHint.visibleProperty());
         valleySettingsBox.visibleProperty().bind(viewModel.gridDetectorMode().isEqualTo(GridDetectorMode.VALLEY));
         valleySettingsBox.managedProperty().bind(valleySettingsBox.visibleProperty());
 
@@ -259,7 +249,9 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         detectedLineCountLabel.setText("Lines detected: " + detectedLines);
     }
 
-    private void setWarpedImage(Image image) { warpedView.setImage(image); }
+    private void setWarpedImage(Image image) {
+        warpedView.setImage(image);
+    }
 
     private void onGrid(GridDetectionResult r) {
         if (r == null) {
@@ -276,12 +268,12 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         lineHLabel.setText(String.format("lineH: %.2fpx  y0=%.2f", r.bestLineH(), r.bestLineY0())
                 + "  (" + r.hValleys().length + " valleys"
                 + (r.hValleysFiltered().length != r.hValleys().length
-                        ? "  →" + r.hValleysFiltered().length + " on-grid" : "") + ")"
+                ? "  →" + r.hValleysFiltered().length + " on-grid" : "") + ")"
                 + valleySummary(r.hValleysFiltered()));
         charWLabel.setText(String.format("charW: %.2fpx  x0=%.2f", r.bestCharW(), r.bestCharX0())
                 + "  (" + r.vValleys().length + " valleys"
                 + (r.vValleysFiltered().length != r.vValleys().length
-                        ? "  →" + r.vValleysFiltered().length + " on-grid" : "") + ")"
+                ? "  →" + r.vValleysFiltered().length + " on-grid" : "") + ")"
                 + valleySummary(r.vValleysFiltered()));
         drawDiffHist(diffHistYCanvas, r.diffHistY(), r.minLineH(), r.bestLineH(),
                 "lineH", Color.rgb(0, 200, 255, 0.9));
@@ -295,73 +287,6 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
                 r.bestCharX0(), "x0", Color.rgb(255, 200, 0, 0.9));
         // also refresh histograms that show valley marks
         if (lastPreProc != null) drawVHistogram(lastPreProc, r);
-    }
-
-    private void onCorrelationResult(CorrelationGridDetectionResult r) {
-        if (r == null) {
-            corrLineHLabel.setText("lineH: —");
-            corrPhaseLabel.setText("phase: —");
-            return;
-        }
-        corrLineHLabel.setText(String.format("lineH: %.2f px", r.smoothedLineHeight()));
-        corrPhaseLabel.setText(String.format("phase: %.2f px  lines: %d", r.smoothedPhase(), r.linePositions().size()));
-        drawProjectionWithGrid(corrProjCanvas, r.projection(), r.smoothedLineHeight(), r.smoothedPhase());
-    }
-
-    private javafx.scene.Node buildCorrelationPanel() {
-        HBox corrParamsRow = hrow(
-                styledLabel("minH:"), corrMinHSp,
-                styledLabel("maxH:"), corrMaxHSp,
-                styledLabel("alpha:"), corrAlphaSp);
-        VBox box = new VBox(6,
-                corrLineHLabel, corrPhaseLabel,
-                corrParamsRow,
-                buildPanel("Projection + grid fit", corrProjCanvas));
-        box.setStyle("-fx-background-color: #1e1e1e;");
-        return box;
-    }
-
-    private static void drawProjectionWithGrid(Canvas canvas, double[] proj,
-                                               double lineHeight, double phase) {
-        GraphicsContext gc = canvas.getGraphicsContext2D();
-        double cw = canvas.getWidth(), ch = canvas.getHeight();
-        gc.setFill(Color.rgb(15, 15, 20));
-        gc.fillRect(0, 0, cw, ch);
-        if (proj == null || proj.length == 0) return;
-
-        double maxV = 1.0;
-        for (double v : proj) if (v > maxV) maxV = v;
-
-        int n = proj.length;
-        double xScale = cw / n;
-
-        // projection bars
-        gc.setFill(Color.rgb(80, 160, 80, 0.7));
-        for (int i = 0; i < n; i++) {
-            double bh = (proj[i] / maxV) * (ch - 2);
-            gc.fillRect(i * xScale, ch - bh, Math.max(1.0, xScale - 0.3), bh);
-        }
-
-        // fitted grid lines: gap positions (phase + N*lineHeight)
-        if (lineHeight > 0) {
-            gc.setStroke(Color.rgb(255, 80, 80, 0.9));
-            gc.setLineWidth(1.5);
-            for (double pos = phase; pos < n; pos += lineHeight) {
-                double x = pos * xScale;
-                gc.strokeLine(x, 0, x, ch);
-            }
-            // text-line midpoints
-            gc.setStroke(Color.rgb(0, 220, 120, 0.8));
-            gc.setLineWidth(1.0);
-            double textStart = (phase + lineHeight * 0.5) % lineHeight;
-            for (double pos = textStart; pos < n; pos += lineHeight) {
-                double x = pos * xScale;
-                gc.strokeLine(x, ch * 0.3, x, ch);
-            }
-            gc.setFont(Font.font("Monospace", FontWeight.BOLD, 9));
-            gc.setFill(Color.rgb(255, 200, 200, 0.9));
-            gc.fillText(String.format("H=%.2f  φ=%.2f", lineHeight, phase), 3, 10);
-        }
     }
 
     private void onPreProcessing(PreProcessingResult r) {
@@ -473,14 +398,14 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
         double scale = Math.min(PREVIEW_W / (double) fw, PREVIEW_H / (double) fh);
         double rendW = fw * scale;
-        double offX  = (PREVIEW_W - rendW) / 2.0;
+        double offX = (PREVIEW_W - rendW) / 2.0;
 
         float maxV = 1f;
         for (float v : sums) if (v > maxV) maxV = v;
 
         // bars
         for (int col = 0; col < sums.length; col++) {
-            double x  = offX + col * scale;
+            double x = offX + col * scale;
             double bw = Math.max(1.0, scale);
             double bh = (sums[col] / maxV) * (VHIST_H - 16);
             gc.setFill(Color.rgb(100, 160, 255, 0.7));
@@ -530,7 +455,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
         double scale = Math.min(PREVIEW_W / (double) fw, PREVIEW_H / (double) fh);
         double rendH = fh * scale;
-        double offY  = (PREVIEW_H - rendH) / 2.0;
+        double offY = (PREVIEW_H - rendH) / 2.0;
 
         float maxVal = 1f;
         for (float v : raw) if (v > maxVal) maxVal = v;
@@ -539,7 +464,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
         // signal bars
         for (int r = 0; r < raw.length; r++) {
-            double y  = offY + r * scale;
+            double y = offY + r * scale;
             double bh = Math.max(1.0, scale);
             gc.setFill(Color.rgb(80, 80, 80, 0.6));
             gc.fillRect(0, y, (raw[r] / maxVal) * barW, bh);
@@ -590,8 +515,8 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
         double scale = Math.min(PREVIEW_W / (double) fw, PREVIEW_H / (double) fh);
         double rendW = fw * scale, rendH = fh * scale;
-        double offX  = (PREVIEW_W - rendW) / 2.0;
-        double offY  = (PREVIEW_H - rendH) / 2.0;
+        double offX = (PREVIEW_W - rendW) / 2.0;
+        double offY = (PREVIEW_H - rendH) / 2.0;
 
         // all raw H-valleys — faint cyan
         if (lastGrid != null) {
@@ -608,7 +533,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
             gc.setStroke(Color.rgb(255, 220, 0, 0.7));
             gc.setLineWidth(1.0);
             double lineH = lastGrid.bestLineH();
-            double y0    = lastGrid.bestLineY0();
+            double y0 = lastGrid.bestLineY0();
             for (double row = y0; row < fh; row += lineH) {
                 double y = offY + row * scale;
                 gc.strokeLine(offX, y, offX + rendW, y);
@@ -616,13 +541,13 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         }
 
         // text-line bands
-        Color[] bandFill = { Color.rgb(0, 180, 255, 0.12), Color.rgb(255, 180, 0, 0.12) };
+        Color[] bandFill = {Color.rgb(0, 180, 255, 0.12), Color.rgb(255, 180, 0, 0.12)};
         gc.setFont(Font.font("Monospace", FontWeight.BOLD, 10));
         gc.setLineWidth(1.0);
         int idx = 0;
         for (TextLine line : result.lines()) {
             double y1 = offY + line.rowStart() * scale;
-            double y2 = offY + line.rowEnd()   * scale;
+            double y2 = offY + line.rowEnd() * scale;
             gc.setFill(bandFill[idx % 2]);
             gc.fillRect(offX, y1, rendW, y2 - y1);
             gc.setStroke(Color.rgb(0, 255, 120, 0.85));
@@ -638,7 +563,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
             gc.setStroke(Color.rgb(180, 100, 255, 0.7));
             gc.setLineWidth(1.0);
             double charW = lastGrid.bestCharW();
-            double x0    = lastGrid.bestCharX0();
+            double x0 = lastGrid.bestCharX0();
             for (double col = x0; col < fw; col += charW) {
                 double x = offX + col * scale;
                 gc.strokeLine(x, offY, x, offY + rendH);
@@ -651,9 +576,10 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
     // -------------------------------------------------------------------------
 
     private static final class LineEntry {
-        final ImageView  iv   = new ImageView();
-        final Label      lbl  = new Label();
+        final ImageView iv = new ImageView();
+        final Label lbl = new Label();
         final BorderPane pane = new BorderPane();
+
         LineEntry() {
             iv.setPreserveRatio(true);
             iv.setFitWidth(440);
@@ -664,6 +590,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
             pane.setStyle("-fx-border-color: #383838; -fx-border-width: 0 0 1 0;");
             pane.setPadding(new Insets(2, 0, 4, 0));
         }
+
         void update(int idx, TextLine line) {
             iv.setImage(line.lineImage());
             lbl.setText(String.format("L%02d  y=%d–%d  h=%dpx",
@@ -674,7 +601,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
     private final java.util.ArrayList<LineEntry> lineEntryPool = new java.util.ArrayList<>();
 
     private void rebuildLineList(TextLineExtractionResult result) {
-        List<TextLine> lines    = result.lines();
+        List<TextLine> lines = result.lines();
         int newCount = lines.size();
         int oldCount = lineList.getChildren().size();
         while (lineEntryPool.size() < newCount) lineEntryPool.add(new LineEntry());
@@ -706,10 +633,13 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         s.getEditor().setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #eeeeee; -fx-font-family: monospace;");
         ((SpinnerValueFactory.DoubleSpinnerValueFactory) s.getValueFactory())
                 .setConverter(new javafx.util.StringConverter<Double>() {
-                    @Override public String toString(Double v) {
+                    @Override
+                    public String toString(Double v) {
                         return v == null ? "" : String.format(java.util.Locale.ROOT, "%.2f", v);
                     }
-                    @Override public Double fromString(String s) {
+
+                    @Override
+                    public Double fromString(String s) {
                         if (s == null || s.isBlank()) return 0.0;
                         return Double.parseDouble(s.trim().replace(',', '.'));
                     }
@@ -729,7 +659,9 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
     private static void bindIntSpinner(Spinner<Integer> s, IntegerProperty prop) {
         s.getValueFactory().setValue(prop.get());
-        s.valueProperty().addListener((obs, o, n) -> { if (n != null) prop.set(n); });
+        s.valueProperty().addListener((obs, o, n) -> {
+            if (n != null) prop.set(n);
+        });
         prop.addListener((obs, o, n) -> {
             if (n.intValue() != s.getValue()) s.getValueFactory().setValue(n.intValue());
         });
@@ -737,7 +669,9 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
     private static void bindDblSpinner(Spinner<Double> s, DoubleProperty prop) {
         s.getValueFactory().setValue(prop.get());
-        s.valueProperty().addListener((obs, o, n) -> { if (n != null) prop.set(n); });
+        s.valueProperty().addListener((obs, o, n) -> {
+            if (n != null) prop.set(n);
+        });
         prop.addListener((obs, o, n) -> {
             if (Math.abs(n.doubleValue() - s.getValue()) > 0.001) s.getValueFactory().setValue(n.doubleValue());
         });
@@ -775,7 +709,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         StringBuilder sb = new StringBuilder("  [");
         sb.append(v[0]);
         if (n >= 2) sb.append(", ").append(v[1]);
-        if (n > 4)  sb.append(", …");
+        if (n > 4) sb.append(", …");
         if (n >= 4) sb.append(", ").append(v[n - 2]);
         if (n >= 3) sb.append(", ").append(v[n - 1]);
         sb.append("]");

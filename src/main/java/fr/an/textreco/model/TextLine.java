@@ -11,5 +11,7 @@ public record TextLine(
         int rowEnd,
         WritableImage lineImage
 ) {
-    public int height() { return rowEnd - rowStart; }
+    public int height() {
+        return rowEnd - rowStart;
+    }
 }

@@ -13,5 +13,7 @@ public class ProcessingMonitoringViewModel implements ViewModel {
         this.context = context;
     }
 
-    public ObjectProperty<FrameStats> frameStatsProperty() { return context.frameStatsProperty; }
+    public ObjectProperty<FrameStats> frameStatsProperty() {
+        return context.frameStatsProperty;
+    }
 }

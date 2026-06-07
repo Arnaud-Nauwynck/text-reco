@@ -12,5 +12,7 @@ public class ResultTextViewModel implements ViewModel {
         this.context = context;
     }
 
-    public StringProperty ocrProperty() { return context.ocrProperty; }
+    public StringProperty ocrProperty() {
+        return context.ocrProperty;
+    }
 }

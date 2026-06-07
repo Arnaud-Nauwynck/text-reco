@@ -10,5 +10,8 @@ public record CameraDevice(int index, String name, int width, int height, double
         return "Camera " + index;
     }
 
-    @Override public String toString() { return label(); }
+    @Override
+    public String toString() {
+        return label();
+    }
 }

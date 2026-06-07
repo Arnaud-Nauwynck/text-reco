@@ -2,6 +2,7 @@ package fr.an.textreco.processing;
 
 import fr.an.textreco.model.CorrelationGridDetectionResult;
 import fr.an.textreco.model.CorrelationGridDetectorSettings;
+import fr.an.textreco.util.MatFacade;
 import lombok.Getter;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
@@ -12,214 +13,180 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Robust terminal line detector using:
- *  1. Horizontal projection histogram
- *  2. Autocorrelation to find line height
- *  3. Phase-locked grid fitting for stable, precise positions
- *  4. Exponential smoothing across frames
+ * Robust terminal grid detector orchestrating four single-responsibility
+ * detectors over the autocorrelation pipeline:
+ * <ol>
+ *   <li>{@link LineHeightDetector} — Y-axis period (line height)</li>
+ *   <li>{@link CharWidthDetector} — X-axis period (char width)</li>
+ *   <li>{@link LineOffsetDetector} — Y-axis gap phase (line offset)</li>
+ *   <li>{@link ColumnOffsetDetector} — X-axis gap phase (column offset)</li>
+ * </ol>
+ *
+ * <p>This class only builds the row/column projection histograms, feeds them to
+ * the detectors, and assembles the {@link CorrelationGridDetectionResult}.  The
+ * signal math lives in {@link CorrelationMath}; cross-frame smoothing lives in
+ * each detector.
  */
 public class CorrelationGridDetectorProcessor {
 
     @Getter
     private final CorrelationGridDetectorSettings settings;
 
-    private double smoothedLineHeight = -1;
-    private double smoothedPhase      = -1;
+    private final LineHeightDetector lineHeightDetector = new LineHeightDetector();
+    private final CharWidthDetector charWidthDetector = new CharWidthDetector();
+    private final LineOffsetDetector lineOffsetDetector = new LineOffsetDetector();
+    private final ColumnOffsetDetector columnOffsetDetector = new ColumnOffsetDetector();
+
+    // pre-allocated scratch for buildProjection — reused every frame
+    private final Mat gray = MatFacade.alloc("CorrelationGridDetector.gray");
+    private final Mat kernel =
+            MatFacade.adopt(Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(3, 1)),
+                    "CorrelationGridDetector.kernel");
 
     public CorrelationGridDetectorProcessor(CorrelationGridDetectorSettings settings) {
         this.settings = settings;
     }
 
+    public void release() {
+        MatFacade.release(gray, "CorrelationGridDetector.gray");
+        MatFacade.release(kernel, "CorrelationGridDetector.kernel");
+    }
+
     public CorrelationGridDetectionResult process(Mat frame) {
-        int minH  = settings.minLineHeight.get();
-        int maxH  = settings.maxLineHeight.get();
+        int minH = settings.minLineHeight.get();
+        int maxH = settings.maxLineHeight.get();
+        int minW = settings.minCharWidth.get();
+        int maxW = settings.maxCharWidth.get();
         double alpha = settings.smoothingAlpha.get();
 
-        double[] proj = buildProjection(frame);
+        prepareGray(frame);
+        double[] rowProj = buildRowProjection();
+        double[] colProj = buildColProjection();
 
-        double lineHeight = estimateLineHeightAutocorr(proj, minH, maxH);
-        if (lineHeight < 0) {
-            return new CorrelationGridDetectionResult(
-                    frame.cols(), frame.rows(),
-                    smoothedLineHeight < 0 ? 0 : smoothedLineHeight,
-                    smoothedPhase < 0 ? 0 : smoothedPhase,
-                    proj,
-                    new ArrayList<>());
-        }
-
-        if (smoothedLineHeight < 0) smoothedLineHeight = lineHeight;
-        else smoothedLineHeight = alpha * lineHeight + (1 - alpha) * smoothedLineHeight;
-
-        double phase = findBestPhase(proj, smoothedLineHeight);
-
-        if (smoothedPhase < 0) {
-            smoothedPhase = phase;
+        // ---- Y axis: line height, then line offset ----
+        double lineHeight = settings.forceLineHeight.get()
+                ? Math.max(0.1, settings.forcedLineHeight.get())
+                : lineHeightDetector.detect(rowProj, minH, maxH, alpha);
+        double lineOffset;
+        if (settings.forceLineOffset.get()) {
+            lineOffset = settings.forcedLineOffset.get();
+        } else if (lineHeight > 0) {
+            lineOffset = lineOffsetDetector.detect(rowProj, lineHeight, alpha);
         } else {
-            double delta = phase - smoothedPhase;
-            double H = smoothedLineHeight;
-            delta -= H * Math.round(delta / H);
-            smoothedPhase = (smoothedPhase + alpha * delta + H) % H;
+            lineOffset = Math.max(0, lineOffsetDetector.getSmoothedPhase());
         }
 
-        List<Integer> positions = gridPositions(smoothedPhase, smoothedLineHeight, frame.rows());
+        // ---- X axis: char width, then column offset ----
+        double charWidth = settings.forceCharWidth.get()
+                ? Math.max(0.1, settings.forcedCharWidth.get())
+                : charWidthDetector.detect(colProj, minW, maxW, alpha);
+        double colOffset;
+        if (settings.forceColOffset.get()) {
+            colOffset = settings.forcedColOffset.get();
+        } else if (charWidth > 0) {
+            colOffset = columnOffsetDetector.detect(colProj, charWidth, alpha);
+        } else {
+            colOffset = Math.max(0, columnOffsetDetector.getSmoothedPhase());
+        }
+
+        List<Integer> linePositions = lineHeight > 0
+                ? gridCellCentres(lineOffset, lineHeight, frame.rows())
+                : new ArrayList<>();
+        List<Integer> columnPositions = charWidth > 0
+                ? gridCellCentres(colOffset, charWidth, frame.cols())
+                : new ArrayList<>();
+
         return new CorrelationGridDetectionResult(
                 frame.cols(), frame.rows(),
-                smoothedLineHeight, smoothedPhase,
-                proj, positions);
+                Math.max(0, lineHeight), lineOffset, rowProj, linePositions,
+                Math.max(0, charWidth), colOffset, colProj, columnPositions);
     }
 
-    /** Reset smoothing state (e.g. on source switch). */
+    /**
+     * Reset smoothing state of all detectors (e.g. on source switch).
+     */
     public void reset() {
-        smoothedLineHeight = -1;
-        smoothedPhase      = -1;
+        lineHeightDetector.reset();
+        charWidthDetector.reset();
+        lineOffsetDetector.reset();
+        columnOffsetDetector.reset();
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Step 1 — Horizontal projection
+    // Projection building
     // ────────────────────────────────────────────────────────────────────────
 
-    private static double[] buildProjection(Mat frame) {
-        Mat gray = new Mat();
+    /**
+     * Converts {@code frame} to an inverted, horizontally-eroded greyscale in
+     * {@link #gray} so dark text becomes bright signal for projection.
+     */
+    private void prepareGray(Mat frame) {
         if (frame.channels() == 3)
             Imgproc.cvtColor(frame, gray, Imgproc.COLOR_BGR2GRAY);
         else
-            gray = frame.clone();
+            frame.copyTo(gray);
 
         Core.bitwise_not(gray, gray);
-
-        Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(3, 1));
         Imgproc.erode(gray, gray, kernel);
 
-        int usableCols = Math.max(gray.cols() - 15, gray.cols() / 2);
-        Mat roi = gray.colRange(0, usableCols);
+        int rows = gray.rows();
+        int cols = gray.cols();
+        if (pixBuf.length != rows * cols) pixBuf = new byte[rows * cols];
+        gray.get(0, 0, pixBuf);
+    }
 
-        int rows = roi.rows();
+    /**
+     * Horizontal projection: sum of each row over the usable columns.
+     */
+    private double[] buildRowProjection() {
+        int rows = gray.rows();
+        int cols = gray.cols();
+        int usableCols = Math.max(cols - 15, cols / 2);
         double[] proj = new double[rows];
         for (int y = 0; y < rows; y++) {
+            int base = y * cols;
             double sum = 0;
             for (int x = 0; x < usableCols; x++)
-                sum += roi.get(y, x)[0];
+                sum += pixBuf[base + x] & 0xFF;
             proj[y] = sum;
         }
-
-        gray.release();
         return proj;
     }
 
-    // ────────────────────────────────────────────────────────────────────────
-    // Step 2 — Autocorrelation → dominant line height
-    // ────────────────────────────────────────────────────────────────────────
-
-    private static double estimateLineHeightAutocorr(double[] proj, int minH, int maxH) {
-        int n = proj.length;
-
-        double mean = 0;
-        for (double v : proj) mean += v;
-        mean /= n;
-        double[] p = new double[n];
-        for (int i = 0; i < n; i++) p[i] = proj[i] - mean;
-
-        double bestVal = Double.NEGATIVE_INFINITY;
-        int    bestLag = -1;
-
-        for (int lag = minH; lag <= maxH && lag < n; lag++) {
-            double acc = 0;
-            for (int y = 0; y < n - lag; y++)
-                acc += p[y] * p[y + lag];
-            if (acc > bestVal) {
-                bestVal = acc;
-                bestLag = lag;
-            }
+    /**
+     * Vertical projection: sum of each column over all rows.
+     */
+    private double[] buildColProjection() {
+        int rows = gray.rows();
+        int cols = gray.cols();
+        double[] proj = new double[cols];
+        for (int y = 0; y < rows; y++) {
+            int base = y * cols;
+            for (int x = 0; x < cols; x++)
+                proj[x] += pixBuf[base + x] & 0xFF;
         }
-
-        if (bestLag < 0) return -1;
-
-        if (bestLag > minH && bestLag < maxH && bestLag < n - 1) {
-            double vm = autocorrAt(p, bestLag - 1);
-            double v0 = autocorrAt(p, bestLag);
-            double vp = autocorrAt(p, bestLag + 1);
-            double denom = 2 * (2 * v0 - vm - vp);
-            if (Math.abs(denom) > 1e-6)
-                return bestLag + (vm - vp) / denom;
-        }
-        return bestLag;
+        return proj;
     }
 
-    private static double autocorrAt(double[] p, int lag) {
-        double acc = 0;
-        for (int y = 0; y < p.length - lag; y++)
-            acc += p[y] * p[y + lag];
-        return acc;
-    }
+    // reused pixel buffer for the projections — grown only on dimension change
+    private byte[] pixBuf = new byte[0];
 
     // ────────────────────────────────────────────────────────────────────────
-    // Step 3 — Phase grid fitting
+    // Output positions
     // ────────────────────────────────────────────────────────────────────────
 
-    private static double findBestPhase(double[] proj, double H) {
-        int n = proj.length;
-        int steps = (int) Math.ceil(H);
-
-        double bestSum   = Double.MAX_VALUE;
-        double bestPhase = 0;
-
-        for (int s = 0; s < steps; s++) {
-            double sum = 0;
-            int count = 0;
-            for (double pos = s; pos < n; pos += H) {
-                int y = (int) Math.round(pos);
-                if (y >= 0 && y < n) { sum += proj[y]; count++; }
-            }
-            if (count > 0) sum /= count;
-            if (sum < bestSum) { bestSum = sum; bestPhase = s; }
-        }
-
-        bestPhase = goldenSectionMin(proj, H,
-                Math.max(0, bestPhase - 1),
-                Math.min(H - 1e-6, bestPhase + 1));
-        return bestPhase;
-    }
-
-    private static double goldenSectionMin(double[] proj, double H, double lo, double hi) {
-        final double PHI = (Math.sqrt(5) - 1) / 2;
-        double a = lo, b = hi;
-        double c = b - PHI * (b - a);
-        double d = a + PHI * (b - a);
-        for (int iter = 0; iter < 30 && (b - a) > 1e-4; iter++) {
-            if (gridEnergy(proj, H, c) < gridEnergy(proj, H, d))
-                b = d;
-            else
-                a = c;
-            c = b - PHI * (b - a);
-            d = a + PHI * (b - a);
-        }
-        return (a + b) / 2.0;
-    }
-
-    private static double gridEnergy(double[] proj, double H, double phase) {
-        int n = proj.length;
-        double sum = 0; int count = 0;
-        for (double pos = phase; pos < n; pos += H) {
-            int y0 = (int) pos;
-            int y1 = Math.min(y0 + 1, n - 1);
-            double frac = pos - y0;
-            sum += (1 - frac) * proj[y0] + frac * proj[y1];
-            count++;
-        }
-        return count > 0 ? sum / count : Double.MAX_VALUE;
-    }
-
-    // ────────────────────────────────────────────────────────────────────────
-    // Step 4 — Generate output positions
-    // ────────────────────────────────────────────────────────────────────────
-
-    private static List<Integer> gridPositions(double phase, double H, int height) {
+    /**
+     * Cell centres along one axis: the gap {@code phase} marks inter-cell gaps,
+     * so cell centres (line tops / char centres) sit half a period {@code T}
+     * away.  Used for both the Y axis (line positions) and the X axis (column
+     * positions).
+     */
+    private static List<Integer> gridCellCentres(double phase, double T, int extent) {
         List<Integer> positions = new ArrayList<>();
-        double textStart = phase + H * 0.5;
-        double first = textStart % H;
-        if (first < 0) first += H;
-        for (double y = first; y < height; y += H)
-            positions.add((int) Math.round(y));
+        double first = (phase + T * 0.5) % T;
+        if (first < 0) first += T;
+        for (double p = first; p < extent; p += T)
+            positions.add((int) Math.round(p));
         return positions;
     }
 }

@@ -38,14 +38,15 @@ import org.opencv.core.Rect;
 public final class CharFeatureCardBuilder {
 
     // zoom factor applied to the 16×32 precomputed template Mat pixels for display (32×64 on screen)
-    public static final int TMPL_ZOOM  = 2;
+    public static final int TMPL_ZOOM = 2;
 
-    private static final int BAR_W    = 120;
-    private static final int BAR_H    = 56;
-    private static final int HHIST_W  = 56;   // horizontal-hist bar max length
-    private static final int VHIST_H  = 40;   // vertical-hist bar max height
+    private static final int BAR_W = 120;
+    private static final int BAR_H = 56;
+    private static final int HHIST_W = 56;   // horizontal-hist bar max length
+    private static final int VHIST_H = 40;   // vertical-hist bar max height
 
-    private CharFeatureCardBuilder() {}
+    private CharFeatureCardBuilder() {
+    }
 
     // -------------------------------------------------------------------------
     // public entry point
@@ -93,7 +94,7 @@ public final class CharFeatureCardBuilder {
 
         // Hu bar chart + numeric values
         Canvas barChart = buildBarChart(feat.hu());
-        Label  huLabel  = new Label(formatHu(feat.hu()));
+        Label huLabel = new Label(formatHu(feat.hu()));
         huLabel.setStyle("-fx-text-fill: #aaddff; -fx-font-family: monospace; -fx-font-size: 10;");
 
         VBox card = new VBox(3, tmplRow, vHistCanvas, infoLabel, barChart, huLabel);
@@ -117,7 +118,7 @@ public final class CharFeatureCardBuilder {
         gc.setLineWidth(1.0);
         gc.setLineDashes();
         gc.strokeRect(bb.x * TMPL_ZOOM, bb.y * TMPL_ZOOM,
-                      bb.width * TMPL_ZOOM, bb.height * TMPL_ZOOM);
+                bb.width * TMPL_ZOOM, bb.height * TMPL_ZOOM);
 
         // dashed symmetry axes through centroid
         gc.setLineWidth(1.5);
@@ -140,10 +141,12 @@ public final class CharFeatureCardBuilder {
     // histograms
     // -------------------------------------------------------------------------
 
-    /** Horizontal histogram: horizontal bars, one per bbox row. Left of template. */
+    /**
+     * Horizontal histogram: horizontal bars, one per bbox row. Left of template.
+     */
     private static Canvas buildHHistCanvas(PreComputedFeaturesChar feat) {
-        float[] hist  = feat.hHist();
-        int     dispH = feat.boundingRect().height * TMPL_ZOOM;
+        float[] hist = feat.hHist();
+        int dispH = feat.boundingRect().height * TMPL_ZOOM;
         Canvas c = new Canvas(HHIST_W, Math.max(1, dispH));
         if (hist == null || hist.length == 0 || dispH == 0) return c;
 
@@ -154,17 +157,19 @@ public final class CharFeatureCardBuilder {
         double barSlot = (double) dispH / hist.length;
         for (int i = 0; i < hist.length; i++) {
             double bw = hist[i] * (HHIST_W - 1);
-            double y  = i * barSlot;
+            double y = i * barSlot;
             gc.setFill(Color.rgb(100, 200, 255, 0.85));
             gc.fillRect(0, y, bw, Math.max(1, barSlot - 1));
         }
         return c;
     }
 
-    /** Vertical histogram: vertical bars, one per bbox column. Below template. */
+    /**
+     * Vertical histogram: vertical bars, one per bbox column. Below template.
+     */
     private static Canvas buildVHistCanvas(PreComputedFeaturesChar feat, int tmplDispW) {
-        float[] hist  = feat.vHist();
-        int     dispW = feat.boundingRect().width * TMPL_ZOOM;
+        float[] hist = feat.vHist();
+        int dispW = feat.boundingRect().width * TMPL_ZOOM;
         Canvas c = new Canvas(tmplDispW, VHIST_H);
         if (hist == null || hist.length == 0 || dispW == 0) return c;
 
@@ -172,11 +177,11 @@ public final class CharFeatureCardBuilder {
         gc.setFill(Color.rgb(15, 15, 15));
         gc.fillRect(0, 0, tmplDispW, VHIST_H);
 
-        double xOff    = feat.boundingRect().x * TMPL_ZOOM;
+        double xOff = feat.boundingRect().x * TMPL_ZOOM;
         double barSlot = (double) dispW / hist.length;
         for (int i = 0; i < hist.length; i++) {
             double bh = hist[i] * (VHIST_H - 2);
-            double x  = xOff + i * barSlot;
+            double x = xOff + i * barSlot;
             gc.setFill(Color.rgb(255, 180, 80, 0.85));
             gc.fillRect(x, VHIST_H - bh, Math.max(1, barSlot - 1), bh);
         }
@@ -206,10 +211,10 @@ public final class CharFeatureCardBuilder {
         gc.strokeLine(0, midY, BAR_W, midY);
 
         for (int i = 0; i < 7; i++) {
-            double x    = 1 + i * barW;
+            double x = 1 + i * barW;
             double norm = hu[i] / maxAbs;
-            double bh   = Math.abs(norm) * (midY - 2);
-            double y    = norm >= 0 ? midY - bh : midY;
+            double bh = Math.abs(norm) * (midY - 2);
+            double y = norm >= 0 ? midY - bh : midY;
             gc.setFill(norm >= 0 ? Color.rgb(60, 200, 180, 0.9) : Color.rgb(255, 140, 60, 0.9));
             gc.fillRect(x + 1, y, barW - 2, bh);
             gc.setFill(Color.rgb(160, 160, 160));
@@ -227,9 +232,9 @@ public final class CharFeatureCardBuilder {
         boolean v = feat.hasVerticalSymmetry();
         boolean h = feat.hasHorizontalSymmetry();
         if (v && h) return "⟺↕ V+H";
-        if (v)      return "⟺  V";
-        if (h)      return " ↕  H";
-        return          "    ~";
+        if (v) return "⟺  V";
+        if (h) return " ↕  H";
+        return "    ~";
     }
 
     public static String formatHu(double[] hu) {
@@ -242,7 +247,9 @@ public final class CharFeatureCardBuilder {
         return sb.toString().stripTrailing();
     }
 
-    /** Converts a greyscale CV_8UC1 {@link Mat} to a JavaFX {@link Image}. */
+    /**
+     * Converts a greyscale CV_8UC1 {@link Mat} to a JavaFX {@link Image}.
+     */
     public static Image matToImage(Mat mat) {
         int w = mat.cols(), h = mat.rows();
         WritableImage img = new WritableImage(w, h);

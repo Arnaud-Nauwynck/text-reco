@@ -31,7 +31,7 @@ public class ImageInputView extends VBox implements JavaView<ImageInputViewModel
     @Getter
     private final VBox root = new VBox(6);
 
-    private final ImageView rawImageView       = new ImageView();
+    private final ImageView rawImageView = new ImageView();
     private final ImageView processedImageView = new ImageView();
 
     public ImageInputView(ImageInputViewModel viewModel) {
@@ -46,7 +46,7 @@ public class ImageInputView extends VBox implements JavaView<ImageInputViewModel
         HBox toolbar = buildToolbar(viewModel);
 
         HBox images = new HBox(8,
-                buildPanel("Camera",    rawImageView),
+                buildPanel("Camera", rawImageView),
                 buildPanel("Processed", processedImageView));
         images.setPadding(new Insets(0, 8, 8, 8));
         images.setAlignment(Pos.CENTER);
@@ -60,13 +60,15 @@ public class ImageInputView extends VBox implements JavaView<ImageInputViewModel
         cameraCombo.setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #dddddd; -fx-border-color: #555; -fx-border-width: 1;");
         cameraCombo.setPrefWidth(210);
         cameraCombo.setCellFactory(lv -> new ListCell<>() {
-            @Override protected void updateItem(CameraDevice item, boolean empty) {
+            @Override
+            protected void updateItem(CameraDevice item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty || item == null ? null : item.label());
             }
         });
         cameraCombo.setButtonCell(new ListCell<>() {
-            @Override protected void updateItem(CameraDevice item, boolean empty) {
+            @Override
+            protected void updateItem(CameraDevice item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty || item == null ? "Detecting…" : item.label());
             }

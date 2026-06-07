@@ -1,5 +1,6 @@
 package fr.an.textreco.processing;
 
+import fr.an.textreco.util.MatTracker;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -66,10 +67,17 @@ public class CharTemplateDb {
     // public accessors
     // -------------------------------------------------------------------------
 
-    public int getTemplateW() { return templateW; }
-    public int getTemplateH() { return templateH; }
+    public int getTemplateW() {
+        return templateW;
+    }
 
-    /** Read-only view of the pre-computed per-character features. */
+    public int getTemplateH() {
+        return templateH;
+    }
+
+    /**
+     * Read-only view of the pre-computed per-character features.
+     */
     public Map<Character, PreComputedFeaturesChar> getCharFeatures() {
         return Collections.unmodifiableMap(charFeatures);
     }
@@ -91,13 +99,14 @@ public class CharTemplateDb {
      * the resized Mat ({@code templateW × templateH}).  The caller must call
      * {@code result.tmpl().release()} when done with the result.
      *
-     * @param grey8u  any single-channel greyscale Mat (any size)
-     * @return        fully populated feature record, size-normalised to the DB template dimensions
+     * @param grey8u any single-channel greyscale Mat (any size)
+     * @return fully populated feature record, size-normalised to the DB template dimensions
      */
     public PreComputedFeaturesChar computeAllFeatures(Mat grey8u) {
         Mat resized = new Mat();
+        MatTracker.alloc(resized, "CharTemplateDb.computeAllFeatures");
         Imgproc.resize(grey8u, resized, new Size(templateW, templateH), 0, 0, Imgproc.INTER_LINEAR);
-        return buildCharFeatures(resized);   // buildCharFeatures stores 'resized' in the record
+        return buildCharFeatures(resized);   // buildCharFeatures stores 'resized' in the record; caller must release tmpl()
     }
 
     /**
@@ -106,8 +115,8 @@ public class CharTemplateDb {
      * recommended by OpenCV so that all seven values have comparable magnitude.
      */
     public static double[] computeHuMoments(Mat grey8u) {
-        Moments m  = Imgproc.moments(grey8u, false);
-        Mat huMat  = new Mat();
+        Moments m = Imgproc.moments(grey8u, false);
+        Mat huMat = new Mat();
         Imgproc.HuMoments(m, huMat);          // 7×1 CV_64F
         double[] hu = new double[7];
         for (int i = 0; i < 7; i++) {
@@ -143,10 +152,10 @@ public class CharTemplateDb {
     private void buildTemplates() {
         int renderW = templateW * 2;
         int renderH = templateH * 2;
-        Font font   = chooseBestFont(renderH);
+        Font font = chooseBestFont(renderH);
 
         for (char ch : CHARSET.toCharArray()) {
-            Mat tmpl  = renderChar(ch, font, renderW, renderH);
+            Mat tmpl = renderChar(ch, font, renderW, renderH);
             Mat small = new Mat();
             Imgproc.resize(tmpl, small, new Size(templateW, templateH), 0, 0, Imgproc.INTER_AREA);
             tmpl.release();
@@ -167,7 +176,7 @@ public class CharTemplateDb {
 
         // Symmetry: pixel-level comparison with flipped copy — robust to font hinting.
         // flipCode: 1 = flip left↔right (vertical axis), 0 = flip top↔bottom (horizontal axis)
-        boolean vertSym  = flipSymmetryScore(small, 1) < PreComputedFeaturesChar.SYMMETRY_THRESHOLD;
+        boolean vertSym = flipSymmetryScore(small, 1) < PreComputedFeaturesChar.SYMMETRY_THRESHOLD;
         boolean horizSym = flipSymmetryScore(small, 0) < PreComputedFeaturesChar.SYMMETRY_THRESHOLD;
 
         // Hu moments (log-scaled)
@@ -184,7 +193,7 @@ public class CharTemplateDb {
         double[] moment = computeMomentFeaturesFromMoments(m, small.cols());
 
         // bounding rect of non-zero pixels (threshold at 16/255 to skip noise)
-        Mat binary     = new Mat();
+        Mat binary = new Mat();
         Mat nonZeroPts = new Mat();
         Imgproc.threshold(small, binary, 16, 255, Imgproc.THRESH_BINARY);
         Core.findNonZero(binary, nonZeroPts);
@@ -195,9 +204,10 @@ public class CharTemplateDb {
         binary.release();
 
         // histograms within the bounding rect
-        Mat roi    = small.submat(bbox);
+        Mat roi = small.submat(bbox);
         float[] hHist = rowSums(roi, bbox.width);    // length = bbox.height
         float[] vHist = colSums(roi, bbox.height);   // length = bbox.width
+        roi.release();
 
         return new PreComputedFeaturesChar(small, hu, moment, vertSym, horizSym, cx, cy, bbox, hHist, vHist);
     }
@@ -210,7 +220,7 @@ public class CharTemplateDb {
         double m00 = m.m00;
         if (m00 == 0) return new double[8];
 
-        double area2  = m00 * m00;
+        double area2 = m00 * m00;
         double area25 = Math.pow(m00, 2.5);
 
         double[] f = new double[8];
@@ -242,25 +252,35 @@ public class CharTemplateDb {
         return mad;
     }
 
-    /** Per-row pixel sums of {@code roi}, normalised to [0,1] by width×255. */
+    /**
+     * Per-row pixel sums of {@code roi}, normalised to [0,1] by width×255.
+     */
     private static float[] rowSums(Mat roi, int width) {
         int h = roi.rows();
         float[] hist = new float[h];
         float norm = width * 255f;
         if (norm == 0) return hist;
-        for (int r = 0; r < h; r++)
-            hist[r] = (float) (Core.sumElems(roi.row(r)).val[0] / norm);
+        for (int r = 0; r < h; r++) {
+            Mat rowMat = roi.row(r);
+            hist[r] = (float) (Core.sumElems(rowMat).val[0] / norm);
+            rowMat.release();
+        }
         return hist;
     }
 
-    /** Per-column pixel sums of {@code roi}, normalised to [0,1] by height×255. */
+    /**
+     * Per-column pixel sums of {@code roi}, normalised to [0,1] by height×255.
+     */
     private static float[] colSums(Mat roi, int height) {
         int w = roi.cols();
         float[] hist = new float[w];
         float norm = height * 255f;
         if (norm == 0) return hist;
-        for (int c = 0; c < w; c++)
-            hist[c] = (float) (Core.sumElems(roi.col(c)).val[0] / norm);
+        for (int c = 0; c < w; c++) {
+            Mat colMat = roi.col(c);
+            hist[c] = (float) (Core.sumElems(colMat).val[0] / norm);
+            colMat.release();
+        }
         return hist;
     }
 
@@ -288,7 +308,7 @@ public class CharTemplateDb {
         g.dispose();
 
         byte[] pixels = new byte[w * h];
-        int[]  raw    = new int[w * h];
+        int[] raw = new int[w * h];
         img.getRaster().getPixels(0, 0, w, h, raw);
         for (int i = 0; i < raw.length; i++) pixels[i] = (byte) raw[i];
         Mat mat = new Mat(h, w, CvType.CV_8UC1);

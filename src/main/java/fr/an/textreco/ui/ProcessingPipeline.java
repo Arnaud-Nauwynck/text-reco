@@ -19,6 +19,8 @@ import fr.an.textreco.processing.PreProcessingProcessor;
 import fr.an.textreco.processing.TessOcrProcessor;
 import fr.an.textreco.processing.TextLineExtractorProcessor;
 import fr.an.textreco.util.FxImageUtils.ImageBuffer;
+import fr.an.textreco.util.MatFacade;
+import fr.an.textreco.util.MatTracker;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
@@ -45,26 +47,32 @@ public class ProcessingPipeline {
     // model (observable outputs — FX thread)
     // -------------------------------------------------------------------------
 
-    @Getter private final ProcessingContext context;
+    @Getter
+    private final ProcessingContext context;
 
     // -------------------------------------------------------------------------
     // processors (controller-internal)
     // -------------------------------------------------------------------------
 
-    @Getter private final CameraCapture             cameraCapture;
-    private final EdgeDetectorProcessor             edgeDetector;
-    private final PerspectiveTransformProcessor     perspectiveProcessor;
-    private final PreProcessingProcessor            preProcessingProcessor;
-    private final TextLineExtractorProcessor        lineExtractor;
-    @Getter private final GridDetectorProcessor            gridDetector;
-    @Getter private final CorrelationGridDetectorProcessor correlationGridDetector;
-    @Getter private final CharTemplateDb             charTemplateDb  = new CharTemplateDb();
-    @Getter private final CharTemplateClassifier    charClassifier  = new CharTemplateClassifier(charTemplateDb);
-    private final TessOcrProcessor                  tessOcr       = new TessOcrProcessor();
+    @Getter
+    private final CameraCapture cameraCapture;
+    private final EdgeDetectorProcessor edgeDetector;
+    private final PerspectiveTransformProcessor perspectiveProcessor;
+    private final PreProcessingProcessor preProcessingProcessor;
+    private final TextLineExtractorProcessor lineExtractor;
+    @Getter
+    private final GridDetectorProcessor gridDetector;
+    @Getter
+    private final CorrelationGridDetectorProcessor correlationGridDetector;
+    @Getter
+    private final CharTemplateDb charTemplateDb = new CharTemplateDb();
+    @Getter
+    private final CharTemplateClassifier charClassifier = new CharTemplateClassifier(charTemplateDb);
+    private final TessOcrProcessor tessOcr = new TessOcrProcessor();
 
     // ImageBuffers for raw and perspective — conversions that don't belong to a single processor
-    private final ImageBuffer rawImageBuf         = new ImageBuffer();
-    private final ImageBuffer edgeImageBuf        = new ImageBuffer();
+    private final ImageBuffer rawImageBuf = new ImageBuffer();
+    private final ImageBuffer edgeImageBuf = new ImageBuffer();
     private final ImageBuffer perspectiveImageBuf = new ImageBuffer();
 
     // -------------------------------------------------------------------------
@@ -79,36 +87,74 @@ public class ProcessingPipeline {
                               PerspectiveTransformProcessor perspectiveProcessor,
                               PreProcessingProcessor preProcessingProcessor,
                               TextLineExtractorProcessor lineExtractor) {
-        this.context               = context;
-        this.edgeDetector          = edgeDetector;
-        this.perspectiveProcessor  = perspectiveProcessor;
+        this.context = context;
+        this.edgeDetector = edgeDetector;
+        this.perspectiveProcessor = perspectiveProcessor;
         this.preProcessingProcessor = preProcessingProcessor;
-        this.lineExtractor         = lineExtractor;
-        this.gridDetector               = new GridDetectorProcessor(context.gridDetectorSettings);
-        this.correlationGridDetector    = new CorrelationGridDetectorProcessor(context.correlationGridDetectorSettings);
-        this.cameraCapture              = new CameraCapture(context.inputSource);
+        this.lineExtractor = lineExtractor;
+        this.gridDetector = new GridDetectorProcessor(context.gridDetectorSettings);
+        this.correlationGridDetector = new CorrelationGridDetectorProcessor(context.correlationGridDetectorSettings);
+        this.cameraCapture = new CameraCapture(context.inputSource);
     }
 
     // -------------------------------------------------------------------------
     // property accessors — delegate to model (kept for backward-compat with Views)
     // -------------------------------------------------------------------------
 
-    public ObjectProperty<WritableImage>            getRawImageProperty()         { return context.rawImageProperty; }
-    public ObjectProperty<WritableImage>            getEdgeImageProperty()        { return context.edgeImageProperty; }
-    public ObjectProperty<WritableImage>            getPerspectiveImageProperty() { return context.perspectiveImageProperty; }
-    public ObjectProperty<PreProcessingResult>      getPreProcessingProperty()    { return context.preProcessingProperty; }
-    public ObjectProperty<TextLineExtractionResult> getTextLinesProperty()        { return context.textLinesProperty; }
-    public ObjectProperty<GridDetectionResult>      getGridDetectionProperty()    { return context.gridDetectionProperty; }
-    public ObjectProperty<FrameStats>               getFrameStatsProperty()       { return context.frameStatsProperty; }
-    public StringProperty                           getOcrProperty()              { return context.ocrProperty; }
-    public StringProperty                           getTessOcrProperty()          { return context.tessOcrProperty; }
-    public BooleanProperty                          getOcrEnabledProperty()       { return context.ocrEnabledProperty; }
+    public ObjectProperty<WritableImage> getRawImageProperty() {
+        return context.rawImageProperty;
+    }
 
-    public InputSource    getInputSource()  { return context.inputSource; }
-    public BooleanProperty getFrozenProperty() { return context.inputSource.frozenProperty(); }
+    public ObjectProperty<WritableImage> getEdgeImageProperty() {
+        return context.edgeImageProperty;
+    }
 
-    /** Delegates to model — called from the FX thread (e.g. "Run once" button). */
-    public void requestOcrOnce() { context.requestOcrOnce(); }
+    public ObjectProperty<WritableImage> getPerspectiveImageProperty() {
+        return context.perspectiveImageProperty;
+    }
+
+    public ObjectProperty<PreProcessingResult> getPreProcessingProperty() {
+        return context.preProcessingProperty;
+    }
+
+    public ObjectProperty<TextLineExtractionResult> getTextLinesProperty() {
+        return context.textLinesProperty;
+    }
+
+    public ObjectProperty<GridDetectionResult> getGridDetectionProperty() {
+        return context.gridDetectionProperty;
+    }
+
+    public ObjectProperty<FrameStats> getFrameStatsProperty() {
+        return context.frameStatsProperty;
+    }
+
+    public StringProperty getOcrProperty() {
+        return context.ocrProperty;
+    }
+
+    public StringProperty getTessOcrProperty() {
+        return context.tessOcrProperty;
+    }
+
+    public BooleanProperty getOcrEnabledProperty() {
+        return context.ocrEnabledProperty;
+    }
+
+    public InputSource getInputSource() {
+        return context.inputSource;
+    }
+
+    public BooleanProperty getFrozenProperty() {
+        return context.inputSource.frozenProperty();
+    }
+
+    /**
+     * Delegates to model — called from the FX thread (e.g. "Run once" button).
+     */
+    public void requestOcrOnce() {
+        context.requestOcrOnce();
+    }
 
     // -------------------------------------------------------------------------
     // lifecycle
@@ -124,7 +170,10 @@ public class ProcessingPipeline {
 
     public void stop() {
         running = false;
-        try { worker.join(); } catch (InterruptedException ignored) {}
+        try {
+            worker.join();
+        } catch (InterruptedException ignored) {
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -137,8 +186,11 @@ public class ProcessingPipeline {
     }
 
     public void loadImageFile(File file) {
-        Mat mat = Imgcodecs.imread(file.getAbsolutePath());
-        if (mat.empty()) { System.err.println("Could not load image: " + file); return; }
+        Mat mat = MatFacade.adopt(Imgcodecs.imread(file.getAbsolutePath()), "loadImageFile");
+        if (mat.empty()) {
+            System.err.println("Could not load image: " + file);
+            return;
+        }
         context.inputSource.setLoadedMat(mat);
         context.inputSource.setFrozen(true);
     }
@@ -156,8 +208,19 @@ public class ProcessingPipeline {
     // pipeline loop (background thread)
     // -------------------------------------------------------------------------
 
+    private static final long DISPLAY_INTERVAL_NS =
+            1000_000_000L; // 1000 ms → max 1 fps on FX thread
+    // 100_000_000L; // 100 ms → max 10 fps on FX thread
+    // 50_000_000L; // 50 ms → max 20 fps on FX thread
+
     private void runLoop() {
         long prevFrameNs = 0;
+        long lastDisplayNs = 0;
+        // All processors were constructed (init mode). Enter the run loop via a
+        // short warm-up window (frameTick() below advances it) so unavoidable
+        // first-frame lazy allocations settle; after that any Mat allocation in
+        // the loop is abnormal and gets flagged.
+        MatFacade.beginRunLoop();
         try {
             while (running) {
                 long t0 = System.nanoTime();
@@ -168,26 +231,19 @@ public class ProcessingPipeline {
                 Mat raw = cameraCapture.getRaw();
                 long t1 = System.nanoTime();
 
-                WritableImage rawImg = rawImageBuf.update(raw);
-                long t2 = System.nanoTime();
+                // --- pure CV work (every frame, no display allocation) ---
 
                 edgeDetector.process(raw);
-                long t3 = System.nanoTime();
-
-                WritableImage edgeImg = edgeImageBuf.update(edgeDetector.getProcessed());
-                long t4 = System.nanoTime();
+                long t2 = System.nanoTime();
 
                 perspectiveProcessor.process(raw);
-                long t5 = System.nanoTime();
+                long t3 = System.nanoTime();
 
                 Mat warped = perspectiveProcessor.getWarped();
-                WritableImage perspectiveImg = warped.empty()
-                        ? null : perspectiveImageBuf.update(warped);
-                long t6 = System.nanoTime();
 
                 PreProcessingResult preProc = warped.empty()
                         ? null : preProcessingProcessor.process(warped);
-                long t7 = System.nanoTime();
+                long t4 = System.nanoTime();
 
                 GridDetectionResult gridResult = null;
                 CorrelationGridDetectionResult corrResult = null;
@@ -205,8 +261,8 @@ public class ProcessingPipeline {
 
                 TextLineExtractionResult linesResult = (preProc == null)
                         ? null : lineExtractor.process(preProc.hRowSums(),
-                                preProcessingProcessor.binary, gridResult);
-                long t8 = System.nanoTime();
+                        preProcessingProcessor.binary, gridResult);
+                long t5 = System.nanoTime();
 
                 String ocrText = "";
                 if (linesResult != null && gridResult != null && !linesResult.lines().isEmpty()) {
@@ -225,46 +281,62 @@ public class ProcessingPipeline {
                 double fps = prevFrameNs > 0 ? 1e9 / (t0 - prevFrameNs) : 0;
                 prevFrameNs = t0;
 
-                FrameStats stats = new FrameStats(
-                        raw.cols(), raw.rows(), fps,
-                        ns2ms(t1 - t0), ns2ms(t2 - t1),
-                        ns2ms(t3 - t2), ns2ms(t4 - t3),
-                        ns2ms(t5 - t4), ns2ms(t6 - t5),
-                        ns2ms(t8 - t0), tessOcrMs);
+                MatTracker.logIfDue();
+                MatFacade.frameTick();
 
-                final WritableImage fPerspImg    = perspectiveImg;
-                final PreProcessingResult fPreProc = preProc;
-                final TextLineExtractionResult fLines = linesResult;
-                final GridDetectionResult fGrid  = gridResult;
-                final CorrelationGridDetectionResult fCorrResult = corrResult;
-                final String fOcrText            = ocrText;
-                final String fTessOcrText        = tessOcrText;
-                Platform.runLater(() -> {
-                    context.rawImageProperty        .set(rawImg);
-                    context.edgeImageProperty       .set(edgeImg);
-                    if (fPerspImg   != null) context.perspectiveImageProperty.set(fPerspImg);
-                    if (fPreProc    != null) context.preProcessingProperty   .set(fPreProc);
-                    if (fLines      != null) context.textLinesProperty       .set(fLines);
-                    if (fGrid       != null) context.gridDetectionProperty           .set(fGrid);
-                    if (fCorrResult != null) context.correlationGridDetectionProperty.set(fCorrResult);
-                    if (fOcrText    != null
-                            && !Objects.equals(context.ocrProperty.get(), fOcrText)) {
-                        context.ocrProperty.set(fOcrText);
-                    }
-                    if (fTessOcrText != null) context.tessOcrProperty        .set(fTessOcrText);
-                    context.frameStatsProperty.set(stats);
-                });
+                long t6 = System.nanoTime();
+                if (t6 - lastDisplayNs >= DISPLAY_INTERVAL_NS) {
+                    lastDisplayNs = t6;
+
+                    // --- image pixel copies only when we will actually display ---
+                    WritableImage fRawImg = rawImageBuf.update(raw);
+                    WritableImage fEdgeImg = edgeImageBuf.update(edgeDetector.getProcessed());
+                    WritableImage fPerspImg = warped.empty() ? null : perspectiveImageBuf.update(warped);
+
+                    FrameStats stats = new FrameStats(
+                            raw.cols(), raw.rows(), fps,
+                            ns2ms(t1 - t0), ns2ms(t2 - t1),
+                            ns2ms(t3 - t2), ns2ms(t4 - t3),
+                            ns2ms(t5 - t4), ns2ms(t6 - t5),
+                            ns2ms(t5 - t0), tessOcrMs);
+
+                    final PreProcessingResult fPreProc = preProc;
+                    final TextLineExtractionResult fLines = linesResult;
+                    final GridDetectionResult fGrid = gridResult;
+                    final CorrelationGridDetectionResult fCorrResult = corrResult;
+                    final String fOcrText = ocrText;
+                    final String fTessOcrText = tessOcrText;
+                    final FrameStats fStats = stats;
+                    Platform.runLater(() -> {
+                        context.rawImageProperty.set(fRawImg);
+                        context.edgeImageProperty.set(fEdgeImg);
+                        if (fPerspImg != null) context.perspectiveImageProperty.set(fPerspImg);
+                        if (fPreProc != null) context.preProcessingProperty.set(fPreProc);
+                        if (fLines != null) context.textLinesProperty.set(fLines);
+                        if (fGrid != null) context.gridDetectionProperty.set(fGrid);
+                        if (fCorrResult != null) context.correlationGridDetectionProperty.set(fCorrResult);
+                        if (fOcrText != null
+                                && !Objects.equals(context.ocrProperty.get(), fOcrText)) {
+                            context.ocrProperty.set(fOcrText);
+                        }
+                        if (fTessOcrText != null) context.tessOcrProperty.set(fTessOcrText);
+                        context.frameStatsProperty.set(fStats);
+                    });
+                }
 
                 if (context.inputSource.isFrozen()) Thread.sleep(50);
             }
         } catch (InterruptedException ignored) {
         } finally {
+            // Back to init mode so a subsequent start() can pre-allocate freely.
+            MatFacade.beginInit();
             cameraCapture.release();
             edgeDetector.release();
             perspectiveProcessor.release();
             preProcessingProcessor.release();
             lineExtractor.release();
             gridDetector.release();
+            correlationGridDetector.release();
             tessOcr.release();
             charClassifier.release();
             charTemplateDb.release();
@@ -278,16 +350,16 @@ public class ProcessingPipeline {
     private String classifyAllChars(TextLineExtractionResult lines,
                                     GridDetectionResult grid,
                                     Mat binary) {
-        double charW  = grid.bestCharW();
+        double charW = grid.bestCharW();
         double charX0 = grid.bestCharX0();
-        double lineH  = grid.bestLineH();
-        int    fw     = binary.cols();
+        double lineH = grid.bestLineH();
+        int fw = binary.cols();
         if (charW <= 0 || lineH <= 0) return "";
 
         // Rebuild column starts from the detected grid (same logic as CharClassifierView)
-        int charWInt  = (int) Math.max(1, Math.round(charW));
-        int x0Int     = (int) Math.round(charX0);
-        int fwdCount  = fw > 0 && charWInt > 0 ? (fw - x0Int + charWInt - 1) / charWInt : 0;
+        int charWInt = (int) Math.max(1, Math.round(charW));
+        int x0Int = (int) Math.round(charX0);
+        int fwdCount = fw > 0 && charWInt > 0 ? (fw - x0Int + charWInt - 1) / charWInt : 0;
         int backCount = charWInt > 0 ? x0Int / charWInt : 0;
         int[] colStarts = new int[backCount + fwdCount];
         for (int i = 0; i < backCount; i++)
@@ -300,11 +372,14 @@ public class ProcessingPipeline {
             int lineTop = line.rowStart();
             int lineBot = Math.min(line.rowEnd(), binary.rows());
             int lh = lineBot - lineTop;
-            if (lh <= 0) { sb.append('\n'); continue; }
+            if (lh <= 0) {
+                sb.append('\n');
+                continue;
+            }
             for (int ci = 0; ci < colStarts.length; ci++) {
-                int cx   = Math.max(0, colStarts[ci]);
+                int cx = Math.max(0, colStarts[ci]);
                 int cEnd = ci + 1 < colStarts.length ? colStarts[ci + 1] : cx + charWInt;
-                int cw   = Math.max(1, Math.min(cEnd - cx, fw - cx));
+                int cw = Math.max(1, Math.min(cEnd - cx, fw - cx));
                 if (cx >= fw) break;
                 Mat crop = binary.submat(lineTop, lineBot, cx, cx + cw);
                 CharTemplateClassifier.Result r = charClassifier.classify(crop);
@@ -316,5 +391,7 @@ public class ProcessingPipeline {
         return sb.toString().stripTrailing();
     }
 
-    private static long ns2ms(long ns) { return ns / 1_000_000; }
+    private static long ns2ms(long ns) {
+        return ns / 1_000_000;
+    }
 }

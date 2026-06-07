@@ -19,12 +19,31 @@ public class GridDetectViewModel implements ViewModel {
         this.context = context;
     }
 
-    public ObjectProperty<PreProcessingResult>           preProcessingProperty()            { return context.preProcessingProperty; }
-    public ObjectProperty<TextLineExtractionResult>      textLinesProperty()                { return context.textLinesProperty; }
-    public ObjectProperty<GridDetectionResult>           gridDetectionProperty()            { return context.gridDetectionProperty; }
-    public ObjectProperty<CorrelationGridDetectionResult> correlationGridDetectionProperty() { return context.correlationGridDetectionProperty; }
-    public ObjectProperty<GridDetectorMode>              gridDetectorMode()                 { return context.gridDetectorMode; }
+    public ObjectProperty<PreProcessingResult> preProcessingProperty() {
+        return context.preProcessingProperty;
+    }
 
-    public GridDetectorSettings              getGridDetectorSettings()            { return context.gridDetectorSettings; }
-    public CorrelationGridDetectorSettings   getCorrelationGridDetectorSettings() { return context.correlationGridDetectorSettings; }
+    public ObjectProperty<TextLineExtractionResult> textLinesProperty() {
+        return context.textLinesProperty;
+    }
+
+    public ObjectProperty<GridDetectionResult> gridDetectionProperty() {
+        return context.gridDetectionProperty;
+    }
+
+    public ObjectProperty<CorrelationGridDetectionResult> correlationGridDetectionProperty() {
+        return context.correlationGridDetectionProperty;
+    }
+
+    public ObjectProperty<GridDetectorMode> gridDetectorMode() {
+        return context.gridDetectorMode;
+    }
+
+    public GridDetectorSettings getGridDetectorSettings() {
+        return context.gridDetectorSettings;
+    }
+
+    public CorrelationGridDetectorSettings getCorrelationGridDetectorSettings() {
+        return context.correlationGridDetectorSettings;
+    }
 }

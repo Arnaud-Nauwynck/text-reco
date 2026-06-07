@@ -19,11 +19,22 @@ public class TessOcrViewModel implements ViewModel {
         this.context = context;
 
         runOnceCommand = new DelegateCommand(() -> new Action() {
-            @Override protected void action() { context.requestOcrOnce(); }
+            @Override
+            protected void action() {
+                context.requestOcrOnce();
+            }
         });
     }
 
-    public BooleanProperty              ocrEnabledProperty()  { return context.ocrEnabledProperty; }
-    public StringProperty               tessOcrProperty()     { return context.tessOcrProperty; }
-    public ObjectProperty<FrameStats>   frameStatsProperty()  { return context.frameStatsProperty; }
+    public BooleanProperty ocrEnabledProperty() {
+        return context.ocrEnabledProperty;
+    }
+
+    public StringProperty tessOcrProperty() {
+        return context.tessOcrProperty;
+    }
+
+    public ObjectProperty<FrameStats> frameStatsProperty() {
+        return context.frameStatsProperty;
+    }
 }

@@ -4,6 +4,7 @@ import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.util.FxImageUtils;
+import fr.an.textreco.util.MatFacade;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
 
@@ -12,8 +13,16 @@ import java.util.List;
 
 /**
  * Produces text-line crops from a perspective-corrected frame using the periodic
- * grid formula:  lineTop = bestLineY0 + N * bestLineH
- *
+ * grid formula:  lineTop = gapPhase + N * bestLineH
+ * <p>
+ * Each band spans one period and is bounded by the inter-line gaps, so the text
+ * row sits centred inside it.  The gap phase is recomputed here from the actual
+ * row-sum projection rather than taken from {@code grid.bestLineY0()}: the grid
+ * offset's meaning differs between detectors (valley-midpoint vs. correlation
+ * cell-centre) and can land half a period off, which would split each crop
+ * across two text rows.  Deriving the gap directly keeps the crops aligned with
+ * whatever the projection shows.
+ * <p>
  * Lines are generated for all N where the strip [lineTop, lineTop+lineH) lies
  * within the frame.  The hRowSums are carried through unchanged for display.
  */
@@ -22,12 +31,13 @@ public class TextLineExtractorProcessor {
     // per-line crop ImageBuffers — grown lazily, never shrunk
     private final List<FxImageUtils.ImageBuffer> lineBuffers = new ArrayList<>();
 
-    public TextLineExtractorProcessor() {}
+    public TextLineExtractorProcessor() {
+    }
 
     /**
-     * @param hRowSums  horizontal projection (open+close combined), length == binary.rows()
-     * @param binary    binarised single-channel frame — cropped for each line image
-     * @param grid      detected grid parameters; if null an empty result is returned
+     * @param hRowSums horizontal projection (open+close combined), length == binary.rows()
+     * @param binary   binarised single-channel frame — cropped for each line image
+     * @param grid     detected grid parameters; if null an empty result is returned
      */
     public TextLineExtractionResult process(float[] hRowSums, Mat binary, GridDetectionResult grid) {
         int w = binary.cols();
@@ -39,20 +49,24 @@ public class TextLineExtractorProcessor {
         }
 
         double lineH = grid.bestLineH();
-        double y0    = grid.bestLineY0();
         if (lineH <= 0) {
             return new TextLineExtractionResult(w, h, List.of(), hRowSums, new float[0], new int[0]);
         }
 
+        // Gap phase derived from the projection (ink-minimising grid lines), so
+        // each band is bounded by gaps and the text row sits centred inside it.
+        // This self-corrects a grid offset that lands on text instead of a gap.
+        double y0 = gapPhase(hRowSums, h, lineH, grid.bestLineY0());
+
         // Find the first N such that y0 + N*lineH >= 0
         int startN = (y0 >= 0) ? 0 : (int) Math.ceil(-y0 / lineH);
 
-        List<TextLine> lines   = new ArrayList<>();
-        List<Integer>  valleys = new ArrayList<>();
+        List<TextLine> lines = new ArrayList<>();
+        List<Integer> valleys = new ArrayList<>();
         int bufIdx = 0;
 
         for (int n = startN; ; n++) {
-            int top    = (int) Math.round(y0 + n * lineH);
+            int top = (int) Math.round(y0 + n * lineH);
             int bottom = (int) Math.round(y0 + (n + 1) * lineH);
             if (top >= h) break;
             bottom = Math.min(bottom, h);
@@ -63,13 +77,62 @@ public class TextLineExtractorProcessor {
             valleys.add(top);
 
             Mat crop = binary.submat(new Rect(0, top, w, spanH));
-            if (bufIdx >= lineBuffers.size()) lineBuffers.add(new FxImageUtils.ImageBuffer());
+            // The per-line ImageBuffer pool grows lazily to a high-water mark
+            // (bounded by frame height / line height) and is reused thereafter.
+            // Mark this bounded growth as expected so it does not warn.
+            if (bufIdx >= lineBuffers.size()) {
+                MatFacade.expectAllocations(() -> lineBuffers.add(new FxImageUtils.ImageBuffer()));
+            }
             lines.add(new TextLine(top, bottom, lineBuffers.get(bufIdx++).update(crop)));
+            crop.release();
         }
         valleys.add(h);
 
         int[] valleyArr = valleys.stream().mapToInt(Integer::intValue).toArray();
         return new TextLineExtractionResult(w, h, lines, hRowSums, new float[0], valleyArr);
+    }
+
+    /**
+     * Gap phase in [0, lineH) that minimises the summed projection at the grid
+     * lines.  Text rows have high row-sums and gaps low ones, so the
+     * ink-minimising phase marks the inter-line gaps — the correct band tops.
+     *
+     * @param fallback used only if the projection is unusable (all-zero); the
+     *                 incoming grid offset, reduced into [0, lineH)
+     */
+    private static double gapPhase(float[] rowSums, int h, double lineH, double fallback) {
+        if (rowSums == null || rowSums.length < h || lineH <= 0) {
+            return ((fallback % lineH) + lineH) % lineH;
+        }
+        final int sub = 4;                                   // quarter-pixel scan
+        int steps = Math.max(1, (int) Math.round(lineH * sub));
+        double bestPhase = -1;
+        double bestEnergy = Double.MAX_VALUE;
+        boolean anyInk = false;
+        for (int s = 0; s < steps; s++) {
+            double phase = (double) s / sub;
+            double sum = 0;
+            int count = 0;
+            for (double pos = phase; pos < h; pos += lineH) {
+                int y = (int) Math.round(pos);
+                if (y >= 0 && y < h) {
+                    sum += rowSums[y];
+                    count++;
+                    if (rowSums[y] != 0f) anyInk = true;
+                }
+            }
+            if (count > 0) {
+                double energy = sum / count;
+                if (energy < bestEnergy) {
+                    bestEnergy = energy;
+                    bestPhase = phase;
+                }
+            }
+        }
+        if (!anyInk || bestPhase < 0) {
+            return ((fallback % lineH) + lineH) % lineH;
+        }
+        return bestPhase;
     }
 
     public void release() {
