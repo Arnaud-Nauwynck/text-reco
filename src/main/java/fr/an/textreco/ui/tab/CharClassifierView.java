@@ -1,10 +1,7 @@
 package fr.an.textreco.ui.tab;
 
 import de.saxsys.mvvmfx.JavaView;
-import fr.an.textreco.model.GridDetectionResult;
-import fr.an.textreco.model.PreProcessingResult;
-import fr.an.textreco.model.TextLine;
-import fr.an.textreco.model.TextLineExtractionResult;
+import fr.an.textreco.model.*;
 import fr.an.textreco.processing.CharTemplateClassifier;
 import fr.an.textreco.processing.CharTemplateDb;
 import fr.an.textreco.ui.viewmodel.CharClassifierViewModel;
@@ -15,12 +12,9 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
-import javafx.scene.control.Spinner;
-import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
@@ -68,13 +62,9 @@ public class CharClassifierView extends VBox implements JavaView<CharClassifierV
     private final Slider colSlider = new Slider(0, 0, 0);
     private final Label colValLabel = monoLabel("—");
 
-    // --- per-axis offset controls: computed label + force checkbox + forced value ---
-    private final Label lineOffComputedLabel = monoLabel("—");
-    private final CheckBox forceLineOffCb = styledCheckBox("Force");
-    private final Spinner<Integer> forcedLineOffSp = offsetSpinner();
-    private final Label colOffComputedLabel = monoLabel("—");
-    private final CheckBox forceColOffCb = styledCheckBox("Force");
-    private final Spinner<Integer> forcedColOffSp = offsetSpinner();
+    // --- shared grid "forced value" controls (line height / char width /
+    //     line offset / char offset) — reusable ForcedValueView + model ---
+    private final GridDetectCoordView forcedValuesPanel;
 
     private final TextField compareField = new TextField();
 
@@ -127,6 +117,8 @@ public class CharClassifierView extends VBox implements JavaView<CharClassifierV
         this.classifier = viewModel.getCharClassifier();
         this.db = classifier.getDb();
 
+        this.forcedValuesPanel = new GridDetectCoordView(viewModel.getGridForcedValues());
+
         viewModel.textLinesProperty().addListener((obs, o, r) -> {
             if (r != null) onResult(r);
         });
@@ -160,14 +152,10 @@ public class CharClassifierView extends VBox implements JavaView<CharClassifierV
         configureSlider(lineSlider, 1, 160, lineValLabel, this::requestRefresh);
         configureSlider(colSlider, 5, 160, colValLabel, this::requestRefresh);
 
-        // per-axis offset controls: spinner enabled only while "Force" is ticked,
-        // any change (toggle or value) triggers a refresh.
-        forcedLineOffSp.disableProperty().bind(forceLineOffCb.selectedProperty().not());
-        forcedColOffSp.disableProperty().bind(forceColOffCb.selectedProperty().not());
-        forceLineOffCb.selectedProperty().addListener((obs, o, n) -> requestRefresh());
-        forceColOffCb.selectedProperty().addListener((obs, o, n) -> requestRefresh());
-        forcedLineOffSp.valueProperty().addListener((obs, o, n) -> requestRefresh());
-        forcedColOffSp.valueProperty().addListener((obs, o, n) -> requestRefresh());
+        // forced-value controls: any change (force toggle or value) on the four
+        // shared models triggers a refresh. The ForcedValueView handles enabling
+        // its spinner only while "Force" is ticked.
+        forcedValuesPanel.addRefreshListener(this::requestRefresh);
 
         // compareWithChars field
         compareField.setPromptText("e.g. MNABab01");
@@ -189,14 +177,10 @@ public class CharClassifierView extends VBox implements JavaView<CharClassifierV
                 styledLabel("Line:"), lineSlider, lineValLabel,
                 styledLabel("Col:"), colSlider, colValLabel);
 
-        // … and the two offset control groups (computed value + force + forced value) on the next.
-        HBox lineOffGroup = hrow(
-                styledLabel("Line offset:"), lineOffComputedLabel,
-                forceLineOffCb, forcedLineOffSp, styledLabel("px"));
-        HBox colOffGroup = hrow(
-                styledLabel("Col offset:"), colOffComputedLabel,
-                forceColOffCb, forcedColOffSp, styledLabel("px"));
-        HBox offsetRow = hrow(lineOffGroup, styledLabel("   "), colOffGroup);
+        // … and the four shared grid "forced value" control groups (computed value
+        // + force + forced value) on the next two rows.
+        HBox periodRow = forcedValuesPanel.periodRow();
+        HBox offsetRow = forcedValuesPanel.offsetRow();
 
         StackPane lineStack = new StackPane(lineView, lineOverlay);
         lineStack.setAlignment(Pos.TOP_LEFT);
@@ -208,6 +192,7 @@ public class CharClassifierView extends VBox implements JavaView<CharClassifierV
 
         VBox topPanel = new VBox(8,
                 navRow,
+                periodRow,
                 offsetRow,
                 panel("V-Histogram (selected line)", histCanvas),
                 panel("Selected Line + columns", lineAndChars));
@@ -297,10 +282,9 @@ public class CharClassifierView extends VBox implements JavaView<CharClassifierV
         colStarts = starts;
         charWidth = charW;
 
-        // computed (optimal) offsets from the grid model — shown next to the
+        // computed (optimal) grid values from the grid model — shown next to the
         // force controls so the user sees the auto value before overriding it.
-        lineOffComputedLabel.setText(String.format("computed=%.2f", lastGrid.bestLineY0()));
-        colOffComputedLabel.setText(String.format("computed=%.2f", lastGrid.bestCharX0()));
+        forcedValuesPanel.updateComputed(lastGrid);
 
         int numCols = colStarts.length;
         colSlider.setMax(numCols == 0 ? 0 : numCols - 1);
@@ -811,41 +795,14 @@ public class CharClassifierView extends VBox implements JavaView<CharClassifierV
         return l;
     }
 
-    private static CheckBox styledCheckBox(String text) {
-        CheckBox cb = new CheckBox(text);
-        cb.setStyle("-fx-text-fill: #cccccc;");
-        return cb;
-    }
-
-    private static Spinner<Integer> offsetSpinner() {
-        Spinner<Integer> s = new Spinner<>(
-                new SpinnerValueFactory.IntegerSpinnerValueFactory(-500, 500, 0));
-        s.setEditable(true);
-        s.setPrefWidth(80);
-        s.setStyle("-fx-background-color: #3a3a3a;");
-        s.getEditor().setStyle("-fx-background-color: #3a3a3a; -fx-text-fill: #eeeeee; -fx-font-family: monospace;");
-        return s;
-    }
-
-    /**
-     * Horizontal crop delta (px) added to the grid's column starts.  Zero when
-     * not forced (use the computed {@code bestCharX0}); otherwise the forced x0
-     * minus the computed one, so {@code colStarts + delta} lands on the forced
-     * grid.
-     */
+    /** Horizontal crop delta (px) for the current grid — see {@link GridDetectCoordView#effectiveColOffset}. */
     private int effectiveColOffset() {
-        if (!forceColOffCb.isSelected() || lastGrid == null) return 0;
-        return forcedColOffSp.getValue() - (int) Math.round(lastGrid.bestCharX0());
+        return forcedValuesPanel.effectiveColOffset(lastGrid);
     }
 
-    /**
-     * Vertical crop delta (px) shifting the column crop window within the line
-     * image.  Zero when not forced (use the computed {@code bestLineY0});
-     * otherwise the forced y0 minus the computed one.
-     */
+    /** Vertical crop delta (px) for the current grid — see {@link GridDetectCoordView#effectiveLineOffset}. */
     private int effectiveLineOffset() {
-        if (!forceLineOffCb.isSelected() || lastGrid == null) return 0;
-        return forcedLineOffSp.getValue() - (int) Math.round(lastGrid.bestLineY0());
+        return forcedValuesPanel.effectiveLineOffset(lastGrid);
     }
 
     private static HBox hrow(javafx.scene.Node... nodes) {

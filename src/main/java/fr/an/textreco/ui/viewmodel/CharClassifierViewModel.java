@@ -2,6 +2,7 @@ package fr.an.textreco.ui.viewmodel;
 
 import de.saxsys.mvvmfx.ViewModel;
 import fr.an.textreco.model.GridDetectionResult;
+import fr.an.textreco.model.GridDetectCoordModel;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLineExtractionResult;
@@ -32,5 +33,9 @@ public class CharClassifierViewModel implements ViewModel {
 
     public CharTemplateClassifier getCharClassifier() {
         return charClassifier;
+    }
+
+    public GridDetectCoordModel getGridForcedValues() {
+        return context.gridForcedValues;
     }
 }

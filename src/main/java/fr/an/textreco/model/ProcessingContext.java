@@ -61,6 +61,13 @@ public class ProcessingContext {
     public final CorrelationGridDetectorSettings correlationGridDetectorSettings = new CorrelationGridDetectorSettings();
     public final ObjectProperty<CorrelationGridDetectionResult> correlationGridDetectionProperty = new SimpleObjectProperty<>();
 
+    /**
+     * Shared "forced value" controls (line height / char width / line offset /
+     * char offset) bound by every tab that displays them, keeping their force
+     * flags and values in sync.
+     */
+    public final GridDetectCoordModel gridForcedValues = new GridDetectCoordModel();
+
     // -------------------------------------------------------------------------
     // one-shot OCR request (written from FX thread, read by camera thread)
     // -------------------------------------------------------------------------

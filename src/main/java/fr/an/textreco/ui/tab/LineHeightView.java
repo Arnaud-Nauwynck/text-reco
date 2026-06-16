@@ -21,7 +21,7 @@ public class LineHeightView extends AbstractCorrelationAxisView {
     @Override
     protected AxisSpec describeAxis() {
         return new AxisSpec(
-                "Line Height (Y period)", "lineH", "y0", "lines",
+                "Line H", "lineH", "y0", "lines",
                 Color.rgb(80, 160, 80, 0.7), Color.rgb(0, 220, 120, 0.8));
     }
 
@@ -65,8 +65,4 @@ public class LineHeightView extends AbstractCorrelationAxisView {
         return vm.getCorrelationGridDetectorSettings().forcedLineHeight;
     }
 
-    @Override
-    protected String forceLabel() {
-        return "Force lineH";
-    }
 }

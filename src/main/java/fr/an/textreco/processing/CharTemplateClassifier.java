@@ -162,8 +162,14 @@ public class CharTemplateClassifier {
         Map<Character, PreComputedFeaturesChar> features = db.getCharFeatures();
         if (features.isEmpty()) return new Result('?', 0f, new TopEntry[0]);
 
-        toGrey(charCrop);   // writes into this.grey
-        Imgproc.resize(grey, resized, new Size(db.getTemplateW(), db.getTemplateH()),
+        // Resize straight from a single-channel reference of the crop into the
+        // fixed-size `resized` template. Imgproc.resize handles non-continuous
+        // submats correctly, so no intermediate copyTo into a reused scratch Mat
+        // is needed (that copy was the source of earlier CvExceptions when the
+        // crop was a non-continuous column slice of the binary frame).
+        Mat grey1ch = toGreyRef(charCrop);
+        if (grey1ch.empty()) return new Result('?', 0f, new TopEntry[0]);
+        Imgproc.resize(grey1ch, resized, new Size(db.getTemplateW(), db.getTemplateH()),
                 0, 0, Imgproc.INTER_LINEAR);
 
         // track top-3 inline: top[0] = best, top[1] = 2nd, top[2] = 3rd
@@ -271,26 +277,6 @@ public class CharTemplateClassifier {
     // -------------------------------------------------------------------------
     // private helpers
     // -------------------------------------------------------------------------
-
-    /**
-     * Converts {@code src} to greyscale into the scratch {@link #grey} Mat.
-     * Always writes to {@code grey}; callers that need a reference use
-     * {@link #toGreyRef}.
-     */
-    private void toGrey(Mat src) {
-        if (src.channels() == 1) {
-            // copyTo throws when grey already holds a crop of a different total
-            // size (it does not reallocate a non-empty destination). create()
-            // reshapes the existing native buffer in place — no Mat allocation —
-            // and is a no-op when the size/type already match.
-            grey.create(src.rows(), src.cols(), src.type());
-            src.copyTo(grey);
-        } else if (src.channels() == 3) {
-            Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGR2GRAY);
-        } else {
-            Imgproc.cvtColor(src, grey, Imgproc.COLOR_BGRA2GRAY);
-        }
-    }
 
     /**
      * Returns a greyscale reference for {@code src}: returns {@code src} directly

@@ -35,7 +35,8 @@
       "mcp__javalens__analyze_type",
       "mcp__javalens__find_possible_bugs",
       "mcp__javalens__get_diagnostics",
-      "mcp__javalens__find_references"
+      "mcp__javalens__find_references",
+      "Bash(git mv *)"
     ]
   }
 }

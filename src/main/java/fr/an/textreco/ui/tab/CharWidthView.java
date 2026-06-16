@@ -21,7 +21,7 @@ public class CharWidthView extends AbstractCorrelationAxisView {
     @Override
     protected AxisSpec describeAxis() {
         return new AxisSpec(
-                "Char Width (X period)", "charW", "x0", "cols",
+                "Char Width", "charW", "x0", "cols",
                 Color.rgb(160, 140, 70, 0.7), Color.rgb(255, 200, 0, 0.8));
     }
 
@@ -65,8 +65,4 @@ public class CharWidthView extends AbstractCorrelationAxisView {
         return vm.getCorrelationGridDetectorSettings().forcedCharWidth;
     }
 
-    @Override
-    protected String forceLabel() {
-        return "Force charW";
-    }
 }

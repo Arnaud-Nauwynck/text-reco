@@ -21,7 +21,7 @@ public class LineOffsetView extends AbstractCorrelationAxisView {
     @Override
     protected AxisSpec describeAxis() {
         return new AxisSpec(
-                "Line Offset (Y gap phase)", "lineH", "y0", "lines",
+                "Y0", "lineH", "y0", "lines",
                 Color.rgb(80, 120, 160, 0.7), Color.rgb(0, 220, 120, 0.85));
     }
 
@@ -65,8 +65,4 @@ public class LineOffsetView extends AbstractCorrelationAxisView {
         return vm.getCorrelationGridDetectorSettings().forcedLineOffset;
     }
 
-    @Override
-    protected String forceLabel() {
-        return "Force y0";
-    }
 }

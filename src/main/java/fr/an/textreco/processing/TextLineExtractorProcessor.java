@@ -28,10 +28,24 @@ import java.util.List;
  */
 public class TextLineExtractorProcessor {
 
-    // per-line crop ImageBuffers — grown lazily, never shrunk
-    private final List<FxImageUtils.ImageBuffer> lineBuffers = new ArrayList<>();
+    /**
+     * Upper bound on the number of text lines a frame can produce, hence the
+     * fixed size of the {@link #lineBuffers} pool. Even a small font on a tall
+     * frame stays well under this; sizing the pool to a constant during init
+     * keeps sub-pixel {@code lineH} jitter from growing it one buffer at a time
+     * inside the run loop (which would leak a tracked Mat per growth).
+     */
+    private static final int MAX_LINES = 256;
+
+    // per-line crop ImageBuffers — pre-allocated during init, reused every frame
+    private final List<FxImageUtils.ImageBuffer> lineBuffers = new ArrayList<>(MAX_LINES);
 
     public TextLineExtractorProcessor() {
+        // Pre-allocate the whole pool now (init mode), so no ImageBuffer — and
+        // therefore no Mat — is ever allocated inside the per-frame run loop.
+        for (int i = 0; i < MAX_LINES; i++) {
+            lineBuffers.add(new FxImageUtils.ImageBuffer());
+        }
     }
 
     /**
@@ -76,13 +90,11 @@ public class TextLineExtractorProcessor {
 
             valleys.add(top);
 
+            // Pool is pre-sized to MAX_LINES; stop once exhausted rather than
+            // allocating a new ImageBuffer (and a tracked Mat) inside the loop.
+            if (bufIdx >= lineBuffers.size()) break;
+
             Mat crop = binary.submat(new Rect(0, top, w, spanH));
-            // The per-line ImageBuffer pool grows lazily to a high-water mark
-            // (bounded by frame height / line height) and is reused thereafter.
-            // Mark this bounded growth as expected so it does not warn.
-            if (bufIdx >= lineBuffers.size()) {
-                MatFacade.expectAllocations(() -> lineBuffers.add(new FxImageUtils.ImageBuffer()));
-            }
             lines.add(new TextLine(top, bottom, lineBuffers.get(bufIdx++).update(crop)));
             crop.release();
         }
@@ -135,8 +147,17 @@ public class TextLineExtractorProcessor {
         return bestPhase;
     }
 
+    /**
+     * Releases the native Mats backing the pool, then rebuilds it so a later
+     * {@code start()} finds it pre-sized again. Called from the pipeline's
+     * shutdown path while already back in {@link MatFacade.Mode#INIT}, so the
+     * re-allocation is expected and unwarned.
+     */
     public void release() {
         lineBuffers.forEach(FxImageUtils.ImageBuffer::release);
         lineBuffers.clear();
+        for (int i = 0; i < MAX_LINES; i++) {
+            lineBuffers.add(new FxImageUtils.ImageBuffer());
+        }
     }
 }

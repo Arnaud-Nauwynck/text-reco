@@ -116,9 +116,6 @@ public abstract class AbstractCorrelationAxisView extends BorderPane
 
     protected abstract DoubleProperty forcedValueProperty(GridDetectViewModel vm);
 
-    /** Label shown next to the force checkbox, e.g. "Force lineH". */
-    protected abstract String forceLabel();
-
     // -------------------------------------------------------------------------
     // build
     // -------------------------------------------------------------------------
@@ -146,6 +143,11 @@ public abstract class AbstractCorrelationAxisView extends BorderPane
         HBox forceRow = buildForceRow(viewModel);
         if (forceRow != null) box.getChildren().add(forceRow);
 
+        // reusable shared grid-coordinate controls (line height / char width /
+        // line offset / char offset), bound to the model shared across the Char
+        // Classifier / Grid Detect / correlation-axis tabs.
+        box.getChildren().add(new GridDetectCoordView(viewModel.getGridForcedValues()));
+
         return box;
     }
 
@@ -160,7 +162,7 @@ public abstract class AbstractCorrelationAxisView extends BorderPane
         DoubleProperty value = forcedValueProperty(viewModel);
         if (enabled == null || value == null) return null;
 
-        CheckBox cb = new CheckBox(forceLabel());
+        CheckBox cb = new CheckBox("Force");
         cb.setStyle("-fx-text-fill: #cccccc;");
         cb.selectedProperty().bindBidirectional(enabled);
 

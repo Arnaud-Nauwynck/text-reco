@@ -21,7 +21,7 @@ public class ColumnOffsetView extends AbstractCorrelationAxisView {
     @Override
     protected AxisSpec describeAxis() {
         return new AxisSpec(
-                "Column Offset (X gap phase)", "charW", "x0", "cols",
+                "x0", "charW", "x0", "cols",
                 Color.rgb(120, 100, 160, 0.7), Color.rgb(255, 200, 0, 0.85));
     }
 
@@ -65,8 +65,4 @@ public class ColumnOffsetView extends AbstractCorrelationAxisView {
         return vm.getCorrelationGridDetectorSettings().forcedColOffset;
     }
 
-    @Override
-    protected String forceLabel() {
-        return "Force x0";
-    }
 }

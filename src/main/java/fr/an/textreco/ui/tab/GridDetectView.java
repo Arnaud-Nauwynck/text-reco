@@ -1,14 +1,17 @@
 package fr.an.textreco.ui.tab;
 
 import de.saxsys.mvvmfx.JavaView;
+import fr.an.textreco.model.CorrelationGridDetectorSettings;
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.GridDetectorMode;
+import fr.an.textreco.model.GridDetectCoordModel;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.TextLine;
 import fr.an.textreco.model.TextLineExtractionResult;
 import fr.an.textreco.model.GridDetectorSettings;
 import fr.an.textreco.ui.viewmodel.GridDetectViewModel;
 import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.ObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -82,6 +85,11 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
     private final CheckBox forceCharX0Cb = styledCheckBox("Force x0");
     private final Spinner<Double> forcedCharX0Sp = dblSpinner(0.0, 500.0, 0.0);
 
+    // When line height or offset is forced, optionally also overlay the grid the
+    // detector *would* have computed automatically, so the forced and computed
+    // line positions can be compared on the image.
+    private final CheckBox showComputedLinesCb = styledCheckBox("Show computed lines");
+
     // --- forced line / column counts ---
     private final Label detectedLineCountLabel = statLabel("Lines detected: —");
     private final Label detectedColCountLabel = statLabel("Cols  detected: —");
@@ -95,10 +103,24 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
     private final RadioButton valleyRadio = styledRadio("Valley / Hough", modeGroup);
     private final RadioButton corrRadio = styledRadio("Correlation", modeGroup);
 
+    // --- shared "forced value" controls (line height / char width / line offset
+    //     / char offset) — reusable GridDetectCoordView bound to the shared model ---
+    private final GridDetectCoordModel forcedValues;
+    private GridDetectCoordView coordView;
+
     private GridDetectionResult lastGrid = null;
     private PreProcessingResult lastPreProc = null;
+    private TextLineExtractionResult lastResult = null;
+
+    // detector settings (read in redrawOverlay to decide whether forcing is active)
+    private GridDetectorSettings gridSettings;
 
     public GridDetectView(GridDetectViewModel viewModel) {
+        this.forcedValues = viewModel.getGridForcedValues();
+        // The processors read the detector-settings models every frame; the
+        // shared GridDetectCoordModel is display-only, so push its force/value
+        // changes into the active detector's settings to trigger a reprocess.
+        bridgeForcedValuesToSettings(viewModel);
         viewModel.preProcessingProperty().addListener((obs, o, r) -> onPreProcessing(r));
         viewModel.textLinesProperty().addListener((obs, o, r) -> {
             if (r != null) onResult(r);
@@ -121,6 +143,7 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         });
 
         GridDetectorSettings gs = viewModel.getGridDetectorSettings();
+        this.gridSettings = gs;
 
         forceLineHCb.selectedProperty().bindBidirectional(gs.forceLineH);
         bindDblSpinner(forcedLineHSp, gs.forcedLineH);
@@ -144,6 +167,14 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         forceLineY0Cb.selectedProperty().bindBidirectional(gs.forceLineY0);
         bindDblSpinner(forcedLineY0Sp, gs.forcedLineY0);
         forcedLineY0Sp.disableProperty().bind(gs.forceLineY0.not());
+
+        // "Show computed lines" is only meaningful while the line grid is forced.
+        showComputedLinesCb.visibleProperty().bind(gs.forceLineH.or(gs.forceLineY0));
+        showComputedLinesCb.managedProperty().bind(showComputedLinesCb.visibleProperty());
+        // redraw the overlay when toggled (re-using the last extraction result)
+        showComputedLinesCb.selectedProperty().addListener((o, a, b) -> {
+            if (lastResult != null) redrawOverlay(lastResult);
+        });
 
         forceCharX0Cb.selectedProperty().bindBidirectional(gs.forceCharX0);
         bindDblSpinner(forcedCharX0Sp, gs.forcedCharX0);
@@ -191,12 +222,13 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         HBox forceOffsetRow = hrow(
                 forceLineY0Cb, forcedLineY0Sp, styledLabel("px   "),
                 forceCharX0Cb, forcedCharX0Sp, styledLabel("px"));
+        HBox showComputedRow = hrow(showComputedLinesCb);
         HBox forceLineCountRow = hrow(detectedLineCountLabel, forceLineCountCb, forcedLineCountSp);
         HBox forceColCountRow = hrow(detectedColCountLabel, forceColCountCb, forcedColCountSp);
 
         VBox valleySettingsBox = new VBox(4,
                 lineCountLabel, gridLabel, lineHLabel, charWLabel,
-                forceLineHRow, forceCharWRow, forceOffsetRow,
+                forceLineHRow, forceCharWRow, forceOffsetRow, showComputedRow,
                 forceLineCountRow, forceColCountRow,
                 chartRow1, chartRow2);
 
@@ -214,10 +246,15 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
 
         HBox modeRow = hrow(styledLabel("Detector:"), valleyRadio, corrRadio);
 
+        // shared forced-value controls (reusable component, bound to the model
+        // shared with the Char Classifier / correlation-axis tabs)
+        coordView = new GridDetectCoordView(forcedValues);
+
         VBox rightContent = new VBox(6,
                 modeRow,
                 valleySettingsBox,
                 corrHint,
+                sectionLabel("Forced grid values"), coordView,
                 sectionLabel("Extracted Lines"), lineScroll);
         VBox.setVgrow(lineScroll, javafx.scene.layout.Priority.ALWAYS);
         rightContent.setStyle("-fx-background-color: #1e1e1e;");
@@ -236,10 +273,72 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
     }
 
     // -------------------------------------------------------------------------
+    // forced-value bridge: shared display model -> active detector settings
+    // -------------------------------------------------------------------------
+
+    /**
+     * Pushes force/value changes from the shared {@link GridDetectCoordModel}
+     * (driven by the {@link GridDetectCoordView} controls) into the detector
+     * settings the processors actually read each frame, so editing a forced
+     * value reprocesses the frame and redraws all panels.
+     *
+     * <p>Writes only into the settings of the {@link GridDetectorMode#CORRELATION
+     * correlation} or {@link GridDetectorMode#VALLEY valley} detector that is
+     * currently active, so the two detectors' independent settings stay
+     * decoupled. Re-applies on a mode switch so the newly active detector picks
+     * up the current forced values.
+     */
+    private void bridgeForcedValuesToSettings(GridDetectViewModel viewModel) {
+        CorrelationGridDetectorSettings corr = viewModel.getCorrelationGridDetectorSettings();
+        GridDetectorSettings valley = viewModel.getGridDetectorSettings();
+        ObjectProperty<GridDetectorMode> mode = viewModel.gridDetectorMode();
+
+        Runnable apply = () -> applyForcedValues(forcedValues, corr, valley, mode.get());
+        forcedValues.lineHeight.force.addListener((o, a, b) -> apply.run());
+        forcedValues.lineHeight.forcedValue.addListener((o, a, b) -> apply.run());
+        forcedValues.charWidth.force.addListener((o, a, b) -> apply.run());
+        forcedValues.charWidth.forcedValue.addListener((o, a, b) -> apply.run());
+        forcedValues.lineOffset.force.addListener((o, a, b) -> apply.run());
+        forcedValues.lineOffset.forcedValue.addListener((o, a, b) -> apply.run());
+        forcedValues.charOffset.force.addListener((o, a, b) -> apply.run());
+        forcedValues.charOffset.forcedValue.addListener((o, a, b) -> apply.run());
+        mode.addListener((o, a, b) -> apply.run());
+
+        // seed the active detector with any forced values already set at startup
+        apply.run();
+    }
+
+    private static void applyForcedValues(GridDetectCoordModel src,
+                                          CorrelationGridDetectorSettings corr,
+                                          GridDetectorSettings valley,
+                                          GridDetectorMode mode) {
+        if (mode == GridDetectorMode.CORRELATION) {
+            corr.forceLineHeight.set(src.lineHeight.force.get());
+            corr.forcedLineHeight.set(src.lineHeight.forcedValue.get());
+            corr.forceCharWidth.set(src.charWidth.force.get());
+            corr.forcedCharWidth.set(src.charWidth.forcedValue.get());
+            corr.forceLineOffset.set(src.lineOffset.force.get());
+            corr.forcedLineOffset.set(src.lineOffset.forcedValue.get());
+            corr.forceColOffset.set(src.charOffset.force.get());
+            corr.forcedColOffset.set(src.charOffset.forcedValue.get());
+        } else {
+            valley.forceLineH.set(src.lineHeight.force.get());
+            valley.forcedLineH.set(src.lineHeight.forcedValue.get());
+            valley.forceCharWidth.set(src.charWidth.force.get());
+            valley.forcedCharWPx.set(src.charWidth.forcedValue.get());
+            valley.forceLineY0.set(src.lineOffset.force.get());
+            valley.forcedLineY0.set(src.lineOffset.forcedValue.get());
+            valley.forceCharX0.set(src.charOffset.force.get());
+            valley.forcedCharX0.set(src.charOffset.forcedValue.get());
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // event handlers
     // -------------------------------------------------------------------------
 
     private void onResult(TextLineExtractionResult result) {
+        lastResult = result;
         redrawOverlay(result);
         redrawHHistogram(result);
         rebuildLineList(result);
@@ -259,6 +358,9 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
             detectedColCountLabel.setText("Cols  detected: —");
             return;
         }
+        // publish computed grid values to the shared models so every tab's
+        // GridDetectCoordView shows the auto-detected value next to its override.
+        coordView.updateComputed(r);
         int detectedCols = r.bestCharW() > 0 && lastPreProc != null
                 ? (int) Math.round(lastPreProc.frameWidth() / r.bestCharW())
                 : r.vValleysFiltered().length;
@@ -518,44 +620,26 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
         double offX = (PREVIEW_W - rendW) / 2.0;
         double offY = (PREVIEW_H - rendH) / 2.0;
 
-        // all raw H-valleys — faint cyan
-        if (lastGrid != null) {
-            gc.setStroke(Color.rgb(0, 200, 200, 0.35));
-            gc.setLineWidth(0.8);
-            for (int v : lastGrid.hValleys()) {
-                double y = offY + v * scale;
-                gc.strokeLine(offX, y, offX + rendW, y);
-            }
-        }
-
-        // periodic H-grid lines: y0 + N × lineH — yellow
+        // The single set of horizontal lines: the periodic grid  y(n) = y0 + n × lineH.
+        // (These are the effective values — equal to the forced ones when forcing is on.)
         if (lastGrid != null && lastGrid.bestLineH() > 0) {
-            gc.setStroke(Color.rgb(255, 220, 0, 0.7));
-            gc.setLineWidth(1.0);
-            double lineH = lastGrid.bestLineH();
-            double y0 = lastGrid.bestLineY0();
-            for (double row = y0; row < fh; row += lineH) {
-                double y = offY + row * scale;
-                gc.strokeLine(offX, y, offX + rendW, y);
-            }
+            drawHGrid(gc, lastGrid.bestLineY0(), lastGrid.bestLineH(), fh, scale, offX, offY, rendW,
+                    Color.rgb(255, 220, 0, 0.8), "y0");
         }
 
-        // text-line bands
-        Color[] bandFill = {Color.rgb(0, 180, 255, 0.12), Color.rgb(255, 180, 0, 0.12)};
-        gc.setFont(Font.font("Monospace", FontWeight.BOLD, 10));
-        gc.setLineWidth(1.0);
-        int idx = 0;
-        for (TextLine line : result.lines()) {
-            double y1 = offY + line.rowStart() * scale;
-            double y2 = offY + line.rowEnd() * scale;
-            gc.setFill(bandFill[idx % 2]);
-            gc.fillRect(offX, y1, rendW, y2 - y1);
-            gc.setStroke(Color.rgb(0, 255, 120, 0.85));
-            gc.strokeLine(offX, y1, offX + rendW, y1);
-            gc.setFill(Color.rgb(220, 255, 220, 0.9));
-            gc.fillText(String.format("L%02d y%d–%d", idx, line.rowStart(), line.rowEnd()),
-                    offX + 3, y1 + (y2 - y1) * 0.75);
-            idx++;
+        // Optionally, when the line grid is forced, also overlay the grid the
+        // detector would have computed automatically (cyan), for comparison.
+        boolean forcing = gridSettings != null
+                && (gridSettings.forceLineH.get() || gridSettings.forceLineY0.get());
+        if (showComputedLinesCb.isSelected() && forcing && lastGrid != null) {
+            double computedLineH = gridSettings.forceLineH.get()
+                    ? computedPeriod(lastGrid.hValleys()) : lastGrid.bestLineH();
+            double computedY0 = gridSettings.forceLineY0.get() && computedLineH > 0
+                    ? computedOffset(lastGrid.hValleys(), computedLineH) : lastGrid.bestLineY0();
+            if (computedLineH > 0) {
+                drawHGrid(gc, computedY0, computedLineH, fh, scale, offX, offY, rendW,
+                        Color.rgb(0, 220, 220, 0.8), "computed");
+            }
         }
 
         // periodic V-grid lines: x0 + N × charW — purple
@@ -569,6 +653,55 @@ public class GridDetectView extends HBox implements JavaView<GridDetectViewModel
                 gc.strokeLine(x, offY, x, offY + rendH);
             }
         }
+    }
+
+    /**
+     * Draws one periodic horizontal grid: a line at every {@code y0 + n × lineH}
+     * within the frame height, in {@code color}, with a small label near the
+     * first line.
+     */
+    private static void drawHGrid(GraphicsContext gc, double y0, double lineH, int fh,
+                                  double scale, double offX, double offY, double rendW,
+                                  Color color, String label) {
+        gc.setStroke(color);
+        gc.setLineWidth(1.0);
+        // start at the lowest n ≥ 0 line that is still inside the frame
+        double start = y0;
+        while (start < 0) start += lineH;
+        boolean labelled = false;
+        for (double row = start; row < fh; row += lineH) {
+            double y = offY + row * scale;
+            gc.strokeLine(offX, y, offX + rendW, y);
+            if (!labelled) {
+                gc.setFont(Font.font("Monospace", FontWeight.BOLD, 9));
+                gc.setFill(color);
+                gc.fillText(String.format("%s=%.1f h=%.2f", label, y0, lineH), offX + 3, y - 2);
+                labelled = true;
+            }
+        }
+    }
+
+    /**
+     * Period the detector would compute from a set of valley positions, using
+     * the same span/(count−1) estimate as the detector's {@code spanPeriod}.
+     * Returns 0 when fewer than two valleys are available.
+     */
+    private static double computedPeriod(int[] valleys) {
+        if (valleys == null || valleys.length < 2) return 0;
+        return (double) (valleys[valleys.length - 1] - valleys[0]) / (valleys.length - 1);
+    }
+
+    /**
+     * Offset (gap phase) the detector would compute from valley positions: the
+     * median of {@code valley mod period}, matching the detector's
+     * {@code medianOffset}.
+     */
+    private static double computedOffset(int[] valleys, double period) {
+        if (valleys == null || valleys.length == 0 || period <= 0) return 0;
+        double[] phases = new double[valleys.length];
+        for (int i = 0; i < valleys.length; i++) phases[i] = valleys[i] % period;
+        java.util.Arrays.sort(phases);
+        return phases[phases.length / 2];
     }
 
     // -------------------------------------------------------------------------

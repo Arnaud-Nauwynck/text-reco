@@ -6,6 +6,7 @@ import fr.an.textreco.model.CorrelationGridDetectorSettings;
 import fr.an.textreco.model.GridDetectionResult;
 import fr.an.textreco.model.GridDetectorMode;
 import fr.an.textreco.model.GridDetectorSettings;
+import fr.an.textreco.model.GridDetectCoordModel;
 import fr.an.textreco.model.PreProcessingResult;
 import fr.an.textreco.model.ProcessingContext;
 import fr.an.textreco.model.TextLineExtractionResult;
@@ -45,5 +46,9 @@ public class GridDetectViewModel implements ViewModel {
 
     public CorrelationGridDetectorSettings getCorrelationGridDetectorSettings() {
         return context.correlationGridDetectorSettings;
+    }
+
+    public GridDetectCoordModel getGridForcedValues() {
+        return context.gridForcedValues;
     }
 }
