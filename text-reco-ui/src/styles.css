@@ -1,0 +1,109 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: monospace;
+  background: #1e1e1e;
+  color: #d4d4d4;
+}
+
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.tab-bar button {
+  padding: 4px 12px;
+  background: #2d2d2d;
+  color: #ccc;
+  border: 1px solid #3c3c3c;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.tab-bar button.active {
+  background: #007acc;
+  color: #fff;
+  border-color: #007acc;
+}
+
+.tab-content {
+  padding: 12px;
+}
+
+.frame-img {
+  max-width: 100%;
+  border: 1px solid #3c3c3c;
+  display: block;
+  margin-bottom: 8px;
+}
+
+label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+input[type="number"],
+input[type="text"],
+select {
+  background: #2d2d2d;
+  color: #d4d4d4;
+  border: 1px solid #3c3c3c;
+  padding: 2px 6px;
+  font-family: monospace;
+  width: 120px;
+}
+
+button {
+  margin: 2px;
+  padding: 4px 10px;
+  background: #2d2d2d;
+  color: #d4d4d4;
+  border: 1px solid #3c3c3c;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+button:hover {
+  background: #3a3a3a;
+}
+
+pre {
+  background: #111;
+  padding: 8px;
+  overflow: auto;
+  font-size: 12px;
+  color: #9cdcfe;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  padding: 8px;
+}
+
+.card h4 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  color: #9cdcfe;
+}
+
+.refresh-note {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+}

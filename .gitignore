@@ -2,3 +2,4 @@
 *.iml
 
 target/
+text-reco-ui/node_modules 

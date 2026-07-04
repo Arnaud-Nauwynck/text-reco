@@ -1,108 +1,22 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<groupId>fr.an.textreco</groupId>
-	<artifactId>textreco</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>fr.an.textreco</groupId>
+    <artifactId>textreco-parent</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
     <properties>
-        <java.version>23</java.version>
-        <javafx.version>25-ea+21</javafx.version>
+        <java.version>21</java.version>
         <opencv.version>4.9.0-0</opencv.version>
+        <spring-boot.version>3.5.7</spring-boot.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-	<dependencies>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.18.42</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>2.0.17</version>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>1.5.25</version>
-            <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-fxml</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-media</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-
-		<dependency>
-			<groupId>org.openpnp</groupId>
-			<artifactId>opencv</artifactId>
-			<version>${opencv.version}</version>
-		</dependency>
-        <dependency>
-            <groupId>net.sourceforge.tess4j</groupId>
-            <artifactId>tess4j</artifactId>
-            <version>5.13.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>de.saxsys</groupId>
-            <artifactId>mvvmfx</artifactId>
-            <version>1.8.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.tngtech.archunit</groupId>
-            <artifactId>archunit-junit5</artifactId>
-            <version>1.4.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>5.12.2</version>
-            <scope>test</scope>
-        </dependency>
-	</dependencies>
-
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.14.1</version>
-                <configuration>
-                    <release>${java.version}</release>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>1.18.42</version>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.3</version>
-            </plugin>
-        </plugins>
-    </build>
+    <modules>
+        <module>text-reco-ui</module>
+        <module>text-reco-server</module>
+    </modules>
 
 </project>
